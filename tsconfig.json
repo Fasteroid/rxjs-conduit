@@ -1,0 +1,38 @@
+{
+    "compilerOptions": {
+
+
+        /* Language and Environment */
+        "target": "es2016",                                  /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
+        "module": "esnext",                                  /* Specify what module code is generated. */
+
+        "lib": [
+            "es6",
+            "dom",
+            "es2016",
+        ],                                                   /* Specify library files to be included in the compilation. */
+
+        "declaration": true,                                 /* Generates corresponding '.d.ts' file. */
+        "declarationMap": true,                              /* Generates a sourcemap for each corresponding '.d.ts' file. */
+        "sourceMap": true,                                   /* Generates corresponding '.map' file. */
+        "outDir": "lib",                                     /* Redirect output structure to the directory. */
+
+        "moduleResolution": "node",
+        "esModuleInterop": true,                             /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */
+        "forceConsistentCasingInFileNames": true,            /* Ensure that casing is correct in imports. */
+
+
+        /* Type Checking */
+        "strict": true,                                      /* Enable all strict type-checking options. */
+        "noImplicitAny": true,                               /* Enable error reporting for expressions and declarations with an implied 'any' type. */
+        "noImplicitThis": true,                              /* Enable error reporting when 'this' is given the type 'any'. */
+        "exactOptionalPropertyTypes": true,                  /* Interpret optional property types as written, rather than adding 'undefined'. */
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "node_modules",
+        "lib"
+    ]
+}
