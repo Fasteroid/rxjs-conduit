@@ -1,4 +1,4 @@
-import { Observable, Observer, Subject, Subscription } from "rxjs";
+import { Observable, Observer, Subject, Subscription, takeUntil } from "rxjs";
 
 /**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
@@ -25,11 +25,14 @@ export class Conduit<T> extends Subject<T> {
     }
     private _value: T | undefined = undefined;
 
+    // Recommended by Claude.ai for cleaning up spliced connections
+    private splices = new Set<Subscription>();
+
     /**
      * Creates a new Conduit.
      * @param first an optional first value to pressurize the conduit with.
      */
-    constructor(first?: T) {
+    constructor(private _destroy: DestroyRefLike, first?: T) {
         super();
 
         // save snapshot on emit
@@ -38,9 +41,11 @@ export class Conduit<T> extends Subject<T> {
             this._value  = snapshot
         })
 
-        // pass first value immediately if provided
-        if(first !== undefined)
-            this.next(first);
+        // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
+        if(arguments.length > 1) this.next(first!);
+
+        // complete when destroyed
+        _destroy.onDestroy( () => this.complete() )
     }
 
     /**
@@ -50,7 +55,6 @@ export class Conduit<T> extends Subject<T> {
      * @returns subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
-
         const observer = callback instanceof Function ? { next: callback } : callback;
 
         if( observer === null || observer === undefined ) return Subscription.EMPTY;
@@ -68,9 +72,28 @@ export class Conduit<T> extends Subject<T> {
      * @param other Data source to splice into this conduit.
      */
     public splice(other: Observable<T>): void {
-        other.subscribe( value => this.next(value) );
+        this.splices.add( 
+            other.subscribe( value => this.next(value) )
+        )
+    }
+
+    /**
+     * Completes this conduit and cleans up spliced connections.
+     */
+    public override complete(): void {
+        this.splices.forEach(sub => sub.unsubscribe());
+        this.splices.clear();
+        super.complete();
     }
     
 }
 
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
+
+/**
+ * Signals to a conduit that it has gone out of scope and should clean up.  
+ * You can pass an Angular `DestroyRef` here.
+ */
+export type DestroyRefLike = { 
+    onDestroy(callback: () => void): () => void
+}

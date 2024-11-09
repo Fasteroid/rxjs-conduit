@@ -23,9 +23,15 @@
 
 
         /* Type Checking */
-        "strict": true,                                      /* Enable all strict type-checking options. */
+        "strict": true,                                     /* Enable all strict type-checking options. */
         "noImplicitAny": true,                               /* Enable error reporting for expressions and declarations with an implied 'any' type. */
         "noImplicitThis": true,                              /* Enable error reporting when 'this' is given the type 'any'. */
+        "strictNullChecks": true,                            /* Enable error reporting for nullable expressions. */
+        "strictFunctionTypes": true,                         /* Enable error reporting for wrong argument types of functions. */
+        "strictPropertyInitialization": true,                /* Enable error reporting for class properties that are not initialized in the constructor. */
+        "noImplicitReturns": true,                           /* Enable error reporting for codepaths not returning a value. */
+        "noImplicitOverride": true,                          /* Ensure overriding members in derived classes are marked with an override modifier. */
+        "noPropertyAccessFromIndexSignature": true,          /* Enforces using indexed accessors for keys declared using an indexed type. */
         "exactOptionalPropertyTypes": true,                  /* Interpret optional property types as written, rather than adding 'undefined'. */
     },
     "include": [

@@ -1,39 +1,47 @@
 {
-  "name": "rxjs-conduit",
-  "version": "1.0.0",
-  "description": "A special kind of RxJS Subject that can be hot-spliced to other Conduits and holds updates for late subscribers",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
-  "files": [
-    "lib"
-  ],
-  "scripts": {
-    "prepublish": "tsc"
-  },
-  "author": "Fasteroid",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Fasteroid/rxjs-conduit.git"
-  },
-  "keywords": [
-    "typescript",
-    "rxjs",
-    "reactive",
-    "observable",
-    "declarative"
-  ],
-  "bugs": {
-    "url": "https://github.com/Fasteroid/rxjs-conduit/issues"
-  },
-  "homepage": "https://github.com/Fasteroid/rxjs-conduit#readme",
-  "devDependencies": {
-    "typescript": "^5.6.3"
-  },
-  "dependencies": {
-    "rxjs": "^7.8.1"
-  },
-  "optionalDependencies": {
-    "@angular/core": "^18.0.1"
-  }
+    "name": "rxjs-conduit",
+    "version": "1.0.0",
+    "description": "A special kind of RxJS Subject that can be hot-spliced to other Conduits and holds updates for late subscribers",
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "test": "node -r esbuild-register --test **/*.spec.ts"
+    },
+    "author": "Fasteroid",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Fasteroid/rxjs-conduit.git"
+    },
+    "keywords": [
+        "typescript",
+        "rxjs",
+        "reactive",
+        "observable",
+        "declarative"
+    ],
+    "bugs": {
+        "url": "https://github.com/Fasteroid/rxjs-conduit/issues"
+    },
+    "homepage": "https://github.com/Fasteroid/rxjs-conduit#readme",
+    "devDependencies": {
+        "@types/node": "^20.17.6",
+        "esbuild-register": "^3.6.0",
+        "typescript": "^5.6.3"
+    },
+    "peerDependencies": {
+        "rxjs": ">=6.6.7"
+    },
+    "peerDependenciesMeta": {
+        "@angular/core": {
+            "optional": true
+        }
+    },
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    }
 }
