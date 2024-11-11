@@ -1,4 +1,4 @@
-import { Observable, Observer, Subject, Subscription } from "rxjs";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable } from "rxjs";
 
 /**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
@@ -26,10 +26,10 @@ export class Conduit<T> extends Subject<T> {
     private _value: T | undefined = undefined;
 
     // Recommended by Claude.ai for cleaning up spliced connections
-    private splices = new Set<Subscription>();
+    private splices = new Set<Unsubscribable>();
 
     /**
-     * Creates a new Conduit.
+     * Creates a new conduit.
      * @param first an optional first value to pressurize the conduit with.
      */
     constructor(first?: T) {
@@ -47,7 +47,7 @@ export class Conduit<T> extends Subject<T> {
 
     /**
      * Subscribes to this conduit.  
-     * Subscribers will receive immediately if this conduit already has a value.
+     * If this conduit {@link hasValue | has a value}, the new subscriber will receive it immediately.
      * @param callback 
      * @returns subscription
      */
@@ -64,13 +64,16 @@ export class Conduit<T> extends Subject<T> {
     }
 
     /**
-     * Feeds this conduit with the output of another observable.  This could be another conduit.
-     * @note 
-     * @param other Data source to splice into this conduit.
+     * Pipes values from another {@link Subscribable} into this conduit.  
+     * When this conduit completes, it will free the spliced connection.
+     * @param other Any subscribable source of values.
      */
-    public splice(other: Observable<T>): void {
+    public splice(other: Subscribable<T>): void {
         this.splices.add( 
-            other.subscribe( value => this.next(value) )
+            other.subscribe({
+                next: value => this.next(value),
+                error: error => this.error(error),
+            })
         )
     }
 
