@@ -1,0 +1,55 @@
+{
+    "name": "rxjs-conduit",
+    "version": "1.0.3",
+    "description": "A special kind of RxJS Subject that can be hot-spliced to other Conduits and holds updates for late subscribers.",
+    "main": "index.js",
+    "module": "index.js",
+    "types": "index.d.ts",
+    "scripts": {
+        "test":  "node -r esbuild-register --test **/*.spec.ts",
+        "prepublish": "cd dist"
+    },
+    "author": "Fasteroid",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Fasteroid/rxjs-conduit.git"
+    },
+    "keywords": [
+        "typescript",
+        "rxjs",
+        "reactive",
+        "observable",
+        "declarative",
+        "angular"
+    ],
+    "bugs": {
+        "url": "https://github.com/Fasteroid/rxjs-conduit/issues"
+    },
+    "homepage": "https://github.com/Fasteroid/rxjs-conduit#readme",
+    "devDependencies": {
+        "@types/node": "^20.17.6",
+        "esbuild-register": "^3.6.0",
+        "typescript": "^5.6.3",
+        "@angular/core": ">=16.0.0"
+    },
+    "peerDependencies": {
+        "rxjs": ">=6.6.7",
+        "@angular/core": ">=16.0.0"
+    },
+    "peerDependenciesMeta": {
+        "@angular/core": {
+            "optional": true
+        }
+    },
+    "exports": {
+        "./vanilla": {
+            "types": "./vanilla/index.d.ts",
+            "default": "./vanilla/index.js"
+        },
+        "./angular": {
+            "types": "./angular/index.d.ts",
+            "default": "./angular/index.js"
+        }
+    }
+}

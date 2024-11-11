@@ -4,7 +4,7 @@
 
         /* Language and Environment */
         "target": "es2016",                                  /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
-        "module": "esnext",                                  /* Specify what module code is generated. */
+        "module": "commonjs",                                  /* Specify what module code is generated. */
 
         "lib": [
             "es6",
@@ -15,7 +15,7 @@
         "declaration": true,                                 /* Generates corresponding '.d.ts' file. */
         "declarationMap": true,                              /* Generates a sourcemap for each corresponding '.d.ts' file. */
         "sourceMap": true,                                   /* Generates corresponding '.map' file. */
-        "outDir": "lib",                                     /* Redirect output structure to the directory. */
+        "outDir": "dist",                                    /* Redirect output structure to the directory. */
 
         "moduleResolution": "node",
         "esModuleInterop": true,                             /* Emit additional JavaScript to ease support for importing CommonJS modules. This enables 'allowSyntheticDefaultImports' for type compatibility. */
@@ -39,6 +39,6 @@
     ],
     "exclude": [
         "node_modules",
-        "lib"
+        "dist"
     ]
 }

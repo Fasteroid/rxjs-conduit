@@ -1,5 +1,7 @@
 import { Unsubscribable, Observer, Subject, Subscription, Subscribable } from "rxjs";
 
+type Ptr<T> = { value?: T | undefined };
+
 /**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
  * 
@@ -65,16 +67,26 @@ export class Conduit<T> extends Subject<T> {
 
     /**
      * Pipes values from another {@link Subscribable} into this conduit.  
+     * If a source errors or completes, it will be unsubscribed.
      * When this conduit completes, it will free the spliced connection.
      * @param other Any subscribable source of values.
      */
     public splice(other: Subscribable<T>): void {
-        this.splices.add( 
-            other.subscribe({
-                next: value => this.next(value),
-                error: error => this.error(error),
-            })
-        )
+        const sub: Ptr<Unsubscribable> = { };
+
+        let remove = () => {
+            sub.value!.unsubscribe();
+            this.splices.delete(sub.value!)
+            sub.value = undefined; // dead on arrival
+        }
+
+        sub.value = other.subscribe({
+            next: value  => this.next(value),
+            error:    remove,
+            complete: remove
+        })
+
+        if( sub.value ) this.splices.add(sub.value);
     }
 
     /**
@@ -85,5 +97,15 @@ export class Conduit<T> extends Subject<T> {
         this.splices.clear();
         super.complete();
     }
+
+    /**
+     * Error this conduit and clean up spliced connections.
+     * @param error 
+     */
+    public override error(error: any): void {
+        this.splices.forEach(sub => sub.unsubscribe());
+        this.splices.clear();
+        super.error(error);
+    };
     
 }
