@@ -1,7 +1,7 @@
 {
     "name": "rxjs-conduit",
     "version": "1.0.0",
-    "description": "A special kind of RxJS Subject that can be hot-spliced to other Conduits and holds updates for late subscribers",
+    "description": "A special kind of RxJS Subject that can be hot-spliced to other Conduits and holds updates for late subscribers.",
     "files": [
         "lib"
     ],
@@ -19,7 +19,8 @@
         "rxjs",
         "reactive",
         "observable",
-        "declarative"
+        "declarative",
+        "angular"
     ],
     "bugs": {
         "url": "https://github.com/Fasteroid/rxjs-conduit/issues"
@@ -28,10 +29,12 @@
     "devDependencies": {
         "@types/node": "^20.17.6",
         "esbuild-register": "^3.6.0",
-        "typescript": "^5.6.3"
+        "typescript": "^5.6.3",
+        "@angular/core": ">=16.0.0"
     },
     "peerDependencies": {
-        "rxjs": ">=6.6.7"
+        "rxjs": ">=6.6.7",
+        "@angular/core": ">=16.0.0"
     },
     "peerDependenciesMeta": {
         "@angular/core": {
@@ -39,9 +42,13 @@
         }
     },
     "exports": {
-        ".": {
-            "types": "./lib/index.d.ts",
-            "default": "./lib/index.js"
+        "./vanilla": {
+            "types": "./lib/vanilla/index.d.ts",
+            "default": "./lib/vanilla/index.js"
+        },
+        "./angular": {
+            "types": "./lib/angular/index.d.ts",
+            "default": "./lib/angular/index.js"
         }
     }
 }

@@ -1,4 +1,4 @@
-import { Observable, Observer, Subject, Subscription, takeUntil } from "rxjs";
+import { Observable, Observer, Subject, Subscription } from "rxjs";
 
 /**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
@@ -32,7 +32,7 @@ export class Conduit<T> extends Subject<T> {
      * Creates a new Conduit.
      * @param first an optional first value to pressurize the conduit with.
      */
-    constructor(private _destroy: DestroyRefLike, first?: T) {
+    constructor(first?: T) {
         super();
 
         // save snapshot on emit
@@ -42,10 +42,7 @@ export class Conduit<T> extends Subject<T> {
         })
 
         // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
-        if(arguments.length > 1) this.next(first!);
-
-        // complete when destroyed
-        _destroy.onDestroy( () => this.complete() )
+        if(arguments.length > 0) this.next(first!);
     }
 
     /**
@@ -86,14 +83,4 @@ export class Conduit<T> extends Subject<T> {
         super.complete();
     }
     
-}
-
-export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
-
-/**
- * Signals to a conduit that it has gone out of scope and should clean up.  
- * You can pass an Angular `DestroyRef` here.
- */
-export type DestroyRefLike = { 
-    onDestroy(callback: () => void): () => void
 }
