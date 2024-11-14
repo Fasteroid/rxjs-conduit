@@ -17,10 +17,10 @@ export class NgConduit<T> extends Conduit<T> {
      */
     public static override derived<
         Result, 
-        Sources extends {[k: string]: Conduit<any>}
+        Sources extends {[k: string]: ReadonlyConduit<any>}
     >( 
         sources: Sources,
-        formula: (args: { [K in keyof Sources]: Sources[K] extends Conduit<infer U> ? U : never }) => Result
+        formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
     ): ReadonlyConduit<Result> {
         let out = Conduit.derived(sources, formula) as Conduit<Result>; // TODO: this cast is a bit of a hack
         inject(DestroyRef).onDestroy(() => out.complete());
