@@ -4,15 +4,15 @@ A special extension of RxJS Subjects, which remember the last value emitted to "
 
 ## Dude just use signals???
 
-- Angular's [signals](https://angular.dev/guide/signals/) feel janky to me and I'd rather stick with tried n' tested RxJS methods.
-- `Conduit.splice` offers a ton of flexibility—initialize things in any order and the conduits will work it out.
+- Angular's use of RxJS goes back further, so I'd rather use that. &nbsp;Computed signals are also too "magical" for me.
+- I find this way of doing things more intuitive. &nbsp;If you prefer something else, do that and save yourself the dependency!
 
 ## Features
 
-- 🔄 **Late Subscriber Catch-Up**: Never miss initialization again!
-- 🔌 **Easy Chaining**: Connect conduits together to create reactive data flow networks
+- 🔄 **Late Subscriber Catch-Up**: Never miss a value again!
+- ✅ **Easy to Learn**: Probably easier to learn than RxJS, anyway.
 - 🎯 **Type-Safe**: Full TypeScript support!
-- 🛠 **RxJS Compatible**: Extends RxJS Subject for seamless integration 
+- 🛠 **Framework Compatible**: Use the subclasses like `NgConduit` for easy cleanup on component destruction!
 
 ## Installation
 
@@ -52,7 +52,7 @@ import { interval } from 'rxjs'
 })
 export class ExampleComponent {
 
-    protected ticker = new Conduit<number>();
+    protected ticker = new NgConduit<number>();
 
     constructor(){
         ticker.splice( interval(1000) ); // no leak, automatically cleans up when component dies
@@ -79,23 +79,23 @@ console.log(empty.value); // Error: conduit has no value
 
 ## API
 
-### `constructor(first?: T)`
+### `new Conduit(first?: T)`
 Creates a new conduit, optionally with an initial value.
 
-### `splice(other: Subscribable<T>): void`
-Connects another observable source to this conduit.
+### `Conduit.derived(sources, formula): ReadonlyConduit<T>`
+Creates a conduit whose value is derived using a formula and a set of source conduits.
+
+### `splice(source): void`
+Streams events from another subscribable into this conduit. 
 
 ### `hasValue: boolean`
-Indicates whether the conduit has received at least one value.
+True if the conduit is pressurized with a value.
 
 ### `value: T`
-Returns the most recent value. Throws if accessed before any value is received.
+Returns the most recent value. &nbsp;Throws an exception if there is no pressure.
 
-### `subscribe(callback: Observer<T> | ((value: T) => void)): Subscription`
-Subscribes to the conduit. If the conduit has a value, the subscriber immediately receives it.
-
-### `complete(): void`
-Completes the conduit and cleans up any spliced connections.
+### `subscribe(callback): Subscription`
+Subscribes to the conduit. &nbsp;If the conduit is pressurized, the subscriber immediately receives its value.
 
 ## ⚠️ Important Notes
 
@@ -104,5 +104,24 @@ Completes the conduit and cleans up any spliced connections.
 
 ## License
 
-MIT
+MIT License.
 
+Copyright © 2024; Fasteroid
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

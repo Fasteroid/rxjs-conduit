@@ -1,13 +1,11 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable } from "rxjs";
-
-type Ptr<T> = { value?: T | undefined };
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable, SubscriptionLike } from "rxjs";
 
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
 
 /**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
  * 
- * Can be {@link splice | spliced}  with other conduits to create chains of automatic reactive data flow.
+ * Can be used to create reactive variables, splice dependencies, and more.
  * 
  * Do NOT connect circularly or you will create an infinite loop.
  */
@@ -48,7 +46,7 @@ export class Conduit<T> extends Subject<T> {
 
             // clean up when we're done
             complete: () => this.cleanup(),
-            error: () => this.cleanup()
+            error:     () => this.cleanup()
         })
 
         // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
@@ -74,27 +72,39 @@ export class Conduit<T> extends Subject<T> {
     }
 
     /**
-     * Pipes values from another {@link Subscribable} into this conduit.  
-     * If a source errors or completes, it will be unsubscribed.
-     * When this conduit completes, it will free the spliced connection.
-     * @param other Any subscribable source of values.
+     * #### Streams events from another {@link Subscribable} into this conduit.  
+     * 
+     * - Defaults to soft splice. &nbsp;If the source completes or errors, it will quietly disconnect from this conduit.
+     * - {@link hard | Hard splice} will pass through errors and completions from the source.
+     * - Splice subscriptions are automatically cleaned up when this conduit completes or errors.
+     * @param source Any subscribable source of values.
+     * @param hard   If true, passes through errors and completions from the source.
      */
-    public splice(other: Subscribable<T>): void {
-        const sub: Ptr<Unsubscribable> = { };
+    public splice(source: Subscribable<T>, hard?: boolean): void {
+        
+        let completed = false;
+
+        let sub: Unsubscribable;
 
         let remove = () => {
-            sub.value!.unsubscribe();
-            this.inputs.delete(sub.value!)
-            sub.value = undefined; // dead on arrival
+            completed = true;
+            if(sub){
+                this.inputs.delete(sub);
+                sub.unsubscribe();
+            }
         }
 
-        sub.value = other.subscribe({
-            next:     value => this.next(value),
-            error:    remove,
-            complete: remove
+        sub = source.subscribe({
+            next:     value      => this.next(value),
+            error:    hard ? err => this.error(err) : remove,
+            complete: hard ? ()  => this.complete() : remove
         })
 
-        if( sub.value ) this.inputs.add(sub.value);
+        // It might be possible for the splice subscription to complete immediately, so we need to check
+        if( completed ) 
+            sub.unsubscribe();
+        else 
+            this.inputs.add(sub);
     }
 
     /** 
@@ -106,7 +116,10 @@ export class Conduit<T> extends Subject<T> {
     }
     
     /**
-     * Creates a conduit whose value is derived using a formula and a set of source conduits.  
+     * #### Creates a conduit whose value is derived using a formula and a set of source conduits.  
+     * - Won't compute until all sources have values.
+     * - Recomputes whenever a source changes.
+     * - Completions and errors from its sources are passed through and will trigger cleanup.
      * @param sources Variables to use in the formula
      * @param formula How to calculate the derived value
      */
@@ -140,15 +153,3 @@ export class Conduit<T> extends Subject<T> {
     }
     
 }
-
-let example_input = new Conduit<number>();
-
-/**
-Type 'Conduit<number>' is not assignable to type 'Conduit<unknown>'.
-  Types of property 'observers' are incompatible.
-    Type 'Observer<number>[]' is not assignable to type 'Observer<unknown>[]'.
-      Type 'Observer<number>' is not assignable to type 'Observer<unknown>'.
-        Type 'unknown' is not assignable to type 'number'.ts(2322)
-*/
-
-Conduit.derived({k: example_input}, ({k}) => {})
