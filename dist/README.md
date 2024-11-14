@@ -85,8 +85,8 @@ Creates a new conduit, optionally with an initial value.
 ### `Conduit.derived(sources, formula): ReadonlyConduit<T>`
 Creates a conduit whose value is derived using a formula and a set of source conduits.
 
-### `splice(source): void`
-Streams events from another subscribable into this conduit. 
+### `splice(source): Conduit`
+Streams events from another subscribable into this conduit. &nbsp;Returns self.
 
 ### `hasValue: boolean`
 True if the conduit is pressurized with a value.

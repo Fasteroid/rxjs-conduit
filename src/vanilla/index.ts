@@ -73,14 +73,16 @@ export class Conduit<T> extends Subject<T> {
 
     /**
      * #### Streams events from another {@link Subscribable} into this conduit.  
+     * Returns self.
      * 
      * - Defaults to soft splice. &nbsp;If the source completes or errors, it will quietly disconnect from this conduit.
      * - {@link hard | Hard splice} will pass through errors and completions from the source.
      * - Splice subscriptions are automatically cleaned up when this conduit completes or errors.
      * @param source Any subscribable source of values.
      * @param hard   If true, passes through errors and completions from the source.
+     * @returns
      */
-    public splice(source: Subscribable<T>, hard?: boolean): void {
+    public splice(source: Subscribable<T>, hard?: boolean): Conduit<T> {
         
         let completed = false;
 
@@ -105,6 +107,8 @@ export class Conduit<T> extends Subject<T> {
             sub.unsubscribe();
         else 
             this.inputs.add(sub);
+
+        return this;
     }
 
     /** 
@@ -125,10 +129,10 @@ export class Conduit<T> extends Subject<T> {
      */
     public static derived<
         Result, 
-        Sources extends {[k: string]: Conduit<any>}, 
+        Sources extends {[k: string]: ReadonlyConduit<any>}, 
     >( 
         sources: Sources,
-        formula: (args: { [K in keyof Sources]: Sources[K] extends Conduit<infer U> ? U : never }) => Result
+        formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
     ): 
     ReadonlyConduit<Result> {
         let out = new Conduit<Result>();
@@ -136,8 +140,8 @@ export class Conduit<T> extends Subject<T> {
         let sources_kv = Object.entries(sources);
 
         let update = () => {
-            if (sources_kv.some(source => !source[1]._hasValue)) return; // can't do anything until all sources have values
-            let args = Object.fromEntries( sources_kv.map(source => [source[0], source[1]._value]) ) as { [K in keyof Sources]: Sources[K] extends Conduit<infer U> ? U : never };
+            if (sources_kv.some(source => !source[1].hasValue)) return; // can't do anything until all sources have values
+            let args = Object.fromEntries( sources_kv.map(source => [source[0], source[1].value]) ) as { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never };
             out.next( formula(args) );
         }
 
