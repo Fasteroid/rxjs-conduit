@@ -2,6 +2,8 @@ import { Unsubscribable, Observer, Subject, Subscription, Subscribable } from "r
 
 type Ptr<T> = { value?: T | undefined };
 
+export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
+
 /**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
  * 
@@ -28,7 +30,7 @@ export class Conduit<T> extends Subject<T> {
     private _value: T | undefined = undefined;
 
     // Recommended by Claude.ai for cleaning up spliced connections
-    private splices = new Set<Unsubscribable>();
+    private inputs = new Set<Unsubscribable>();
 
     /**
      * Creates a new conduit.
@@ -37,10 +39,16 @@ export class Conduit<T> extends Subject<T> {
     constructor(first?: T) {
         super();
 
-        // save snapshot on emit
-        super.subscribe( snapshot => {
-            this._hasValue = true;
-            this._value  = snapshot
+        super.subscribe({
+            // save snapshot on emit
+            next: (snapshot) => {
+                this._hasValue = true;
+                this._value  = snapshot;
+            },
+
+            // clean up when we're done
+            complete: () => this.cleanup(),
+            error: () => this.cleanup()
         })
 
         // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
@@ -76,36 +84,71 @@ export class Conduit<T> extends Subject<T> {
 
         let remove = () => {
             sub.value!.unsubscribe();
-            this.splices.delete(sub.value!)
+            this.inputs.delete(sub.value!)
             sub.value = undefined; // dead on arrival
         }
 
         sub.value = other.subscribe({
-            next: value  => this.next(value),
+            next:     value => this.next(value),
             error:    remove,
             complete: remove
         })
 
-        if( sub.value ) this.splices.add(sub.value);
+        if( sub.value ) this.inputs.add(sub.value);
     }
 
-    /**
-     * Completes this conduit and cleans up spliced connections.
-     */
-    public override complete(): void {
-        this.splices.forEach(sub => sub.unsubscribe());
-        this.splices.clear();
-        super.complete();
+    /** 
+     * Callback for when this conduit goes out of scope
+    */
+    protected cleanup(){
+        this.inputs.forEach(sub => sub.unsubscribe());
+        this.inputs.clear();
     }
-
+    
     /**
-     * Error this conduit and clean up spliced connections.
-     * @param error 
+     * Creates a conduit whose value is derived using a formula and a set of source conduits.  
+     * @param sources Variables to use in the formula
+     * @param formula How to calculate the derived value
      */
-    public override error(error: any): void {
-        this.splices.forEach(sub => sub.unsubscribe());
-        this.splices.clear();
-        super.error(error);
-    };
+    public static derived<
+        Result, 
+        Sources extends {[k: string]: Conduit<any>}, 
+    >( 
+        sources: Sources,
+        formula: (args: { [K in keyof Sources]: Sources[K] extends Conduit<infer U> ? U : never }) => Result
+    ): 
+    ReadonlyConduit<Result> {
+        let out = new Conduit<Result>();
+        
+        let sources_kv = Object.entries(sources);
+
+        let update = () => {
+            if (sources_kv.some(source => !source[1]._hasValue)) return; // can't do anything until all sources have values
+            let args = Object.fromEntries( sources_kv.map(source => [source[0], source[1]._value]) ) as { [K in keyof Sources]: Sources[K] extends Conduit<infer U> ? U : never };
+            out.next( formula(args) );
+        }
+
+        for( let source of sources_kv ){
+            out.inputs.add( source[1].subscribe({
+                next: () => update(),
+                complete: () => out.complete(), // will trigger cleanup; see line 42
+                error: (err) => out.error(err)
+            }) );
+        }
+
+        return out;
+    }
     
 }
+
+let example_input = new Conduit<number>();
+
+/**
+Type 'Conduit<number>' is not assignable to type 'Conduit<unknown>'.
+  Types of property 'observers' are incompatible.
+    Type 'Observer<number>[]' is not assignable to type 'Observer<unknown>[]'.
+      Type 'Observer<number>' is not assignable to type 'Observer<unknown>'.
+        Type 'unknown' is not assignable to type 'number'.ts(2322)
+*/
+
+Conduit.derived({k: example_input}, ({k}) => {})
