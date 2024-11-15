@@ -44,6 +44,7 @@ export class Conduit<T> extends Subject<T> {
      * Cleans up all input subscriptions.
     */
     protected cleanupAll(){
+        this.unsubscribe();
         this.inputs.forEach( (sub) => sub.unsubscribe() );
         this.inputs.clear();
     }

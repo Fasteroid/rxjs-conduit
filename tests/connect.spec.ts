@@ -1,24 +1,54 @@
 import test from "node:test";
 import { Conduit } from "../src/vanilla";
+import { throwAny } from "./common";
 
-test("Connect pressure source to empty conduit", () => {
+test("Hard-splice pressure source to empty conduit", () => {
 
     const pusher   = new Conduit<number>(1);
     const receiver = new Conduit<number>();
 
-    let success = false;
+    const errors: string[] = [];
+    let ran = false;
 
     receiver.subscribe(value => {
-        success = (value === 1);
+        ran = true;
+        if(value !== 1) errors.push(`Expected 1, got ${value}`);
     })
 
-    receiver.splice(pusher);
+    receiver.splice(pusher, true);
 
-    if( !success ){
-        throw new Error("Spliced conduit didn't receive the value.");
-    }
+    if( !ran ) errors.push("Receiver conduit didn't receive");
+
+    pusher.complete();
+
+    if( !receiver.closed ) errors.push("Hard-spliced receiver was not closed by completion of its source");
+
+    throwAny(errors);
 
 });
+
+test("Soft-splice pressure source to empty conduit", () => {
+    const pusher   = new Conduit<number>(1);
+    const receiver = new Conduit<number>();
+
+    const errors: string[] = [];
+    let ran = false;
+
+    receiver.subscribe(value => {
+        ran = true;
+        if(value !== 1) errors.push(`Expected 1, got ${value}`);
+    })
+
+    receiver.splice(pusher, false);
+
+    if( !ran ) errors.push("Receiver conduit didn't receive");
+
+    pusher.complete();
+
+    if( receiver.closed ) errors.push("Soft-spliced receiver was closed by completion its source");
+
+    throwAny(errors);
+})
 
 test("Connect multiple sources to a conduit", () => {
 
@@ -28,8 +58,6 @@ test("Connect multiple sources to a conduit", () => {
     let sum = 0;
 
     const receiver = new Conduit<number>();
-
-    let success = false;
 
     receiver.subscribe(value => {
         sum += value;

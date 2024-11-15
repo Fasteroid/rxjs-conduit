@@ -1,6 +1,7 @@
 import test from "node:test";
 import { Conduit } from "../src/vanilla";
 import { from } from "rxjs";
+import { throwAny } from "./common";
 
 test("Derive 1 + 1", () => {
 
@@ -63,6 +64,8 @@ test("Derive (1 + 2) * (3 + 4)", () => {
 
 test("Derive x + 1", () => {
 
+    const errors: string[] = [];
+
     let initial  = Array.from({length: 10}, (_, i) => i).map(v => v + Math.random());
     let expected = initial.map(v => v + 1);
 
@@ -73,14 +76,21 @@ test("Derive x + 1", () => {
     derived.subscribe(value => {
         let expect = expected.shift();
         if( value !== expect ){
-            throw new Error(`Expected ${expect} but got ${value}`);
+            errors.push(`Expected ${expect} but got ${value}`);
         }
     });
 
     x.splice( from(initial) ); // this has to come last, otherwise x will suck up the values before the derived conduit can subscribe!
 
     if( expected.length > 0 ){
-        throw new Error(`Didn't compute all the values!`);
+        errors.push(`Didn't compute all the values!`);
     }
 
+    x.complete();
+
+    if( !derived.closed ){
+        errors.push(`Derived conduit didn't close on completion of its source`);
+    }
+
+    throwAny(errors);
 })

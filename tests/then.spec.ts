@@ -3,7 +3,6 @@ import { Conduit } from "../src/vanilla";
 import { throwAny } from "./common";
 
 test("Await 42", () => {
-
     let   ran = false;
     const errors: string[] = [];
 
