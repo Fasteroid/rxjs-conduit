@@ -66,15 +66,13 @@ export class Conduit<T> extends Subject<T> {
      * @returns subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
-        const observer = callback instanceof Function ? { next: callback } : callback;
+        const subscription = new SafeSubscriber(callback);
 
-        if( observer === null || observer === undefined ) return Subscription.EMPTY;
-
-        if(this._hasValue && observer.next){ // we missed the last emit, so we need to catch up
-            observer.next(this._value!);
+        if(this._hasValue){ // we missed the last emit, so we need to catch up
+            subscription.next(this._value!);
         }
 
-        return super.subscribe(observer);
+        return super.subscribe(subscription);
     }
 
     /**
@@ -114,8 +112,7 @@ export class Conduit<T> extends Subject<T> {
      * Callback for when this conduit goes out of scope
     */
     protected cleanup(){
-        this.inputs.forEach(sub => sub.unsubscribe());
-        this.inputs.clear();
+        this.inputs.forEach( this.cleanupInput.bind(this) )
     }
     
     /**
