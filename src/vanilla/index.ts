@@ -1,4 +1,4 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable } from "rxjs";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take } from "rxjs";
 import { SafeSubscriber } from "rxjs/internal/Subscriber";
 
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
@@ -31,9 +31,21 @@ export class Conduit<T> extends Subject<T> {
     // Recommended by Claude.ai for cleaning up spliced connections
     private inputs = new Set<Unsubscribable>();
 
-    private cleanupInput(sub: Unsubscribable){
+    /**
+     * Cleans up a single input subscription.
+     */
+    private cleanupSingle(sub: Unsubscribable){
         sub.unsubscribe();
         this.inputs.delete(sub);
+    }
+
+    /** 
+     * Callback for when this conduit goes out of scope.  
+     * Cleans up all input subscriptions.
+    */
+    protected cleanupAll(){
+        this.inputs.forEach( (sub) => sub.unsubscribe() );
+        this.inputs.clear();
     }
 
     /**
@@ -51,8 +63,8 @@ export class Conduit<T> extends Subject<T> {
             },
 
             // clean up when we're done
-            complete: () => this.cleanup(),
-            error:    () => this.cleanup()
+            complete: () => this.cleanupAll(),
+            error:    () => this.cleanupAll()
         })
 
         // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
@@ -62,8 +74,8 @@ export class Conduit<T> extends Subject<T> {
     /**
      * Subscribes to this conduit.  
      * If this conduit {@link hasValue | has a value}, the new subscriber will receive it immediately.
-     * @param callback 
-     * @returns subscription
+     * @param callback - an {@link Observer | observer} or callback function
+     * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
         const subscription = new SafeSubscriber(callback);
@@ -84,7 +96,7 @@ export class Conduit<T> extends Subject<T> {
      * - Splice subscriptions are automatically cleaned up when this conduit completes or errors.
      * @param source Any subscribable source of values.
      * @param hard   If true, passes through errors and completions from the source.
-     * @returns
+     * @returns self
      */
     public splice(source: Subscribable<T>, hard?: boolean): Conduit<T> {
         
@@ -93,10 +105,10 @@ export class Conduit<T> extends Subject<T> {
                 this.next(value);
             },
             error: (err) => {
-                hard ? this.error(err) : this.cleanupInput(subscriber);
+                hard ? this.error(err) : this.cleanupSingle(subscriber);
             },
             complete: () => {
-                hard ? this.complete() : this.cleanupInput(subscriber);
+                hard ? this.complete() : this.cleanupSingle(subscriber);
             }
         });
         source.subscribe(subscriber);
@@ -108,11 +120,14 @@ export class Conduit<T> extends Subject<T> {
         return this;
     }
 
-    /** 
-     * Callback for when this conduit goes out of scope
-    */
-    protected cleanup(){
-        this.inputs.forEach( this.cleanupInput.bind(this) )
+    /**
+     * Similar to {@link subscribe}, but it only runs once, then cleans up.
+     * @param callback - an {@link Observer | observer} or callback function
+     * @returns the subscription (but you probably won't need it)
+     */
+    public then(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
+        const subscriber = new SafeSubscriber(callback);
+        return this.pipe( take(1) ).subscribe(subscriber);
     }
     
     /**
@@ -122,6 +137,7 @@ export class Conduit<T> extends Subject<T> {
      * - Completions and errors from its sources are passed through and will trigger cleanup.
      * @param sources Variables to use in the formula
      * @param formula How to calculate the derived value
+     * @returns The derived conduit
      */
     public static derived<
         Result, 

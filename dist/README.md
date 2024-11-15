@@ -97,6 +97,9 @@ Returns the most recent value. &nbsp;Throws an exception if there is no pressure
 ### `subscribe(callback): Subscription`
 Subscribes to the conduit. &nbsp;If the conduit is pressurized, the subscriber immediately receives its value.
 
+### `then(callback): Subscription`
+Similar to `subscribe`, but it only runs once then cleans up the subscription.
+
 ## ⚠️ Important Notes
 
 - Don't connect conduits in loops!
