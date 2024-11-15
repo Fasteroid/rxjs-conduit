@@ -1,4 +1,5 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable, SubscriptionLike } from "rxjs";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable } from "rxjs";
+import { SafeSubscriber } from "rxjs/internal/Subscriber";
 
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
 
@@ -30,6 +31,11 @@ export class Conduit<T> extends Subject<T> {
     // Recommended by Claude.ai for cleaning up spliced connections
     private inputs = new Set<Unsubscribable>();
 
+    private cleanupInput(sub: Unsubscribable){
+        sub.unsubscribe();
+        this.inputs.delete(sub);
+    }
+
     /**
      * Creates a new conduit.
      * @param first an optional first value to pressurize the conduit with.
@@ -46,7 +52,7 @@ export class Conduit<T> extends Subject<T> {
 
             // clean up when we're done
             complete: () => this.cleanup(),
-            error:     () => this.cleanup()
+            error:    () => this.cleanup()
         })
 
         // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
@@ -84,29 +90,22 @@ export class Conduit<T> extends Subject<T> {
      */
     public splice(source: Subscribable<T>, hard?: boolean): Conduit<T> {
         
-        let completed = false;
-
-        let sub: Unsubscribable;
-
-        let remove = () => {
-            completed = true;
-            if(sub){
-                this.inputs.delete(sub);
-                sub.unsubscribe();
+        const subscriber = new SafeSubscriber<T>({
+            next: (value) => {
+                this.next(value);
+            },
+            error: (err) => {
+                hard ? this.error(err) : this.cleanupInput(subscriber);
+            },
+            complete: () => {
+                hard ? this.complete() : this.cleanupInput(subscriber);
             }
+        });
+        source.subscribe(subscriber);
+
+        if( !subscriber.closed ){
+            this.inputs.add(subscriber); // clean up later
         }
-
-        sub = source.subscribe({
-            next:     value      => this.next(value),
-            error:    hard ? err => this.error(err) : remove,
-            complete: hard ? ()  => this.complete() : remove
-        })
-
-        // It might be possible for the splice subscription to complete immediately, so we need to check
-        if( completed ) 
-            sub.unsubscribe();
-        else 
-            this.inputs.add(sub);
 
         return this;
     }
