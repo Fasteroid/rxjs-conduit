@@ -85,17 +85,15 @@ Creates a new conduit, optionally with an initial value.
 ### `Conduit.derived(sources, formula): ReadonlyConduit<T>`
 Creates a conduit whose value is derived using a formula and a set of source conduits.
 
-### `splice(source): Conduit`
-Streams events from another subscribable into this conduit. &nbsp;Returns self.
+### `splice(source, hard?): Conduit`
+Streams events from another subscribable into this conduit. &nbsp;Returns self.  
+💡 Use hard splices to pass through errors and completions from the source!
 
 ### `hasValue: boolean`
 True if the conduit is pressurized with a value.
 
 ### `value: T`
 Returns the most recent value. &nbsp;Throws an exception if there is no pressure.
-
-### `subscribe(callback): Subscription`
-Subscribes to the conduit. &nbsp;If the conduit is pressurized, the subscriber immediately receives its value.
 
 ### `then(callback): Subscription`
 Similar to `subscribe`, but it only runs once then cleans up the subscription.
