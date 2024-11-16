@@ -21,7 +21,7 @@ test("Hard-splice pressure source to empty conduit", () => {
 
     pusher.complete();
 
-    if( !receiver.closed ) errors.push("Hard-spliced receiver was not closed by completion of its source");
+    if( !receiver.sealed ) errors.push("Hard-spliced receiver was not sealed by completion of its source");
 
     throwAny(errors);
 

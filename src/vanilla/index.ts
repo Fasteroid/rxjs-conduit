@@ -134,6 +134,91 @@ export class Conduit<T> extends Subject<T> {
         }
     }
 
-    
+    /**
+     * #### Streams events from another {@link Subscribable} into this conduit.  
+     * Returns self.
+     * 
+     * - Defaults to soft splice. &nbsp;If the source completes or errors, it will quietly disconnect from this conduit.
+     * - {@link hard | Hard splice} will pass through errors and completions from the source.
+     * - Splice subscriptions are automatically cleaned up when this conduit completes or errors.
+     * - Doesn't work if this conduit is sealed.
+     * @param source Any subscribable source of values.
+     * @param hard   If true, passes through errors and completions from the source.
+     * @returns self
+     */
+    public splice(source: Subscribable<T>, hard?: boolean): Conduit<T> {
+        if( this.sealed ){
+            console.warn("Attempted to splice into a sealed conduit!  This is probably a mistake!!");
+            return this;
+        }
+        
+        const subscriber = new SafeSubscriber<T>({
+            next: (value) => {
+                this.next(value);
+            },
+            error: (err) => {
+                hard ? this.error(err) : this.cleanup(subscriber);
+            },
+            complete: () => {
+                hard ? this.complete() : this.cleanup(subscriber);
+            }
+        });
+        
+        source.subscribe(subscriber); // see what it does (it might complete immediately and clean itself up)
+
+        if( !subscriber.closed ){ // if it didn't complete immediately, we'll need to clean it up later
+            this.sources.add(subscriber);
+        }
+
+        return this;
+    }
+
+    /**
+     * Similar to {@link subscribe}, but it only runs once, then cleans up.
+     * @param callback - an {@link Observer | observer} or callback function
+     * @returns the subscription (but you probably won't need it)
+     */
+    public then(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
+        const subscriber = new SafeSubscriber(callback);
+        return this.pipe( take(1) ).subscribe(subscriber);
+    }
+
+    /**
+     * #### Creates a conduit whose value is derived using a formula and a set of source conduits.  
+     * - Won't compute until all sources have values.
+     * - Recomputes whenever a source changes.
+     * - Completions and errors from its sources are passed through and will trigger cleanup.
+     * @param sources Variables to use in the formula
+     * @param formula How to calculate the derived value
+     * @returns The derived conduit
+     */
+    public static derived<
+        Result, 
+        Sources extends {[k: string]: ReadonlyConduit<any>}, 
+    >( 
+        sources: Sources,
+        formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
+    ): 
+    ReadonlyConduit<Result> {
+        let out = new Conduit<Result>();
+        
+        let sources_kv = Object.entries(sources);
+
+        let update = () => {
+            if ( sources_kv.some(source => source[1].value === Conduit.EMPTY) ) return; // can't do anything until all sources have values
+            let args = Object.fromEntries( sources_kv.map(source => [source[0], source[1].value]) ) as { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never };
+            out.next( formula(args) );
+        }
+
+        for( let source of sources_kv ){
+            out.sources.add( source[1].subscribe({
+                next: () => update(),
+                complete: () => out.complete(), // should trigger cleanup
+                error: (err) => out.error(err)  // should also trigger cleanup
+            }) );
+        }
+
+        return out;
+    }
     
 }

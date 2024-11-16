@@ -63,7 +63,6 @@ test("Derive (1 + 2) * (3 + 4)", () => {
 });
 
 test("Derive x + 1", () => {
-
     const errors: string[] = [];
 
     let initial  = Array.from({length: 10}, (_, i) => i).map(v => v + Math.random());
@@ -88,8 +87,8 @@ test("Derive x + 1", () => {
 
     x.complete();
 
-    if( !derived.closed ){
-        errors.push(`Derived conduit didn't close on completion of its source`);
+    if( !derived.sealed ){
+        errors.push(`Derived conduit didn't seal on completion of one of its sources`);
     }
 
     throwAny(errors);
