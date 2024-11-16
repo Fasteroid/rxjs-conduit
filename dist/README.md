@@ -22,8 +22,7 @@ npm install rxjs-conduit
 
 ## Usage
 
-### Vanilla
-
+### Basic Vanilla Usage
 ```ts
 import { Conduit } from 'rxjs-conduit/vanilla';
 
@@ -39,10 +38,11 @@ source.next(100); // -> 100a
 source.subscribe(value => console.log(value + "b")); // -> 100b
 ```
 
-### Angular
+### Angular Integration
 ```ts
 import { NgConduit } from 'rxjs-conduit/angular';
-import { Component } from '@angular/core';
+import type { ReadonlyConduit } from 'rxjs-conduit/vanilla';
+import { Component, ViewChild } from '@angular/core';
 import { interval } from 'rxjs'
 
 @Component({
@@ -51,30 +51,33 @@ import { interval } from 'rxjs'
     styleUrls: ['./example.component.scss']
 })
 export class ExampleComponent {
+    
+    // create stress-free observavles that automatically complete when the component is destroyed!
+    protected ticker$ = new NgConduit<number>();
 
-    protected ticker = new NgConduit<number>();
+    // learning the angular lifecycle is hard... but you don't have to with conduits!
+    public child$: ReadonlyConduit<ChildComponent> = new NgConduit<ChildComponent>();
+    
+    @ViewChild
+    protected set child(value: ChildComponent){ child$.next(value) }
 
     constructor(){
-        ticker.splice( interval(1000) ); // no leak, automatically cleans up when component dies
+        // internal spliced subscriptions are cleaned up for you too!
+        ticker$.splice( interval(1000) );
     }
-
 }
 ```
 
-### Value Peeking (dangerous)
-
+### Value Peeking
 ```typescript
 const conduit = new Conduit<string>('initial');
-
-// Check if the conduit has received a value
-console.log(conduit.hasValue); // true
 
 // Access the current value
 console.log(conduit.value); // 'initial'
 
-// Will throw if accessed before first value
+// And if there isn't a value yet...
 const empty = new Conduit<string>();
-console.log(empty.value); // Error: conduit has no value
+console.log(empty.value); // Conduit.EMPTY
 ```
 
 ## API
