@@ -103,3 +103,24 @@ test("Connect pressure source to chain of conduits", () => {
     }
 
 })
+
+test("Connect to completed conduit", () => {
+
+    const errors: string[] = [];
+
+    const conduit = new Conduit<string>("hi");
+    conduit.complete();
+
+    let ran = false;
+    let action = conduit.subscribe(value => {
+        ran = true;
+        if(value !== "hi") errors.push(`Subscribe expected "hi", got ${value}`);
+    });
+
+    conduit.next("bye");
+
+    if( !ran )           errors.push("Callback didn't run");
+    if( !action.closed ) errors.push("Callback subscription didn't close");
+
+    throwAny(errors);
+})

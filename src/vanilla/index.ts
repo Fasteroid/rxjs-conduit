@@ -100,10 +100,10 @@ export class Conduit<T> extends Subject<T> {
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
         const subscription = new SafeSubscriber(callback);
-        super.subscribe(subscription) // returned subscription is the same one we just created
 
         if(this._thrownError !== Conduit.OK){
             subscription.error(this._thrownError); // error first if there is one
+            return subscription;
         }
 
         if(this._value !== Conduit.EMPTY){
@@ -112,7 +112,10 @@ export class Conduit<T> extends Subject<T> {
 
         if( this.sealed ){
             subscription.unsubscribe(); // clean up immediately if we're sealed
+            return subscription;
         }
+
+        super.subscribe(subscription);
 
         return subscription;
     }
