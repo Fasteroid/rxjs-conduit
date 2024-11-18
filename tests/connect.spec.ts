@@ -111,15 +111,22 @@ test("Connect to completed conduit", () => {
     const conduit = new Conduit<string>("hi");
     conduit.complete();
 
-    let ran = false;
-    let action = conduit.subscribe(value => {
-        ran = true;
-        if(value !== "hi") errors.push(`Subscribe expected "hi", got ${value}`);
+    let next = false;
+    let complete = false;
+    let action = conduit.subscribe({ 
+        next: value => {
+            next = true;
+            if(value !== "hi") errors.push(`Subscribe expected "hi", got ${value}`);
+        },
+        complete: () => {
+            complete = true;
+        }
     });
 
     conduit.next("bye");
 
-    if( !ran )           errors.push("Callback didn't run");
+    if( !next )           errors.push("Next didn't run");
+    if( !complete )       errors.push("Complete didn't run");
     if( !action.closed ) errors.push("Callback subscription didn't close");
 
     throwAny(errors);

@@ -103,6 +103,7 @@ export class Conduit<T> extends Subject<T> {
 
         if(this._thrownError !== Conduit.OK){
             subscription.error(this._thrownError); // error first if there is one
+            subscription.unsubscribe();            // remove
             return subscription;
         }
 
@@ -111,7 +112,8 @@ export class Conduit<T> extends Subject<T> {
         }
 
         if( this.sealed ){
-            subscription.unsubscribe(); // clean up immediately if we're sealed
+            subscription.complete();    // sealed and wasn't an error; therefore complete
+            subscription.unsubscribe(); // remove
             return subscription;
         }
 
