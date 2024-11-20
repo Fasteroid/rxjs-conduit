@@ -24,6 +24,8 @@ test("Derive 1 + 1", () => {
 
 test("Derive (1 + 2) * (3 + 4)", () => {
 
+    let errors: string[] = [];
+
     let succ1 = false;
     let succ2 = false;
     let succ3 = false;
@@ -44,20 +46,27 @@ test("Derive (1 + 2) * (3 + 4)", () => {
 
     const sum2 = Conduit.derived({three, four}, ({three, four}) => three + four);
 
+    const final = Conduit.derived({sum1, sum2}, ({sum1, sum2}) => sum1 * sum2);
+
+    let timesRan = 0;
+
+    final.subscribe(value => {
+        succ3 = (value === (1 + 2) * (3 + 4));
+        timesRan++;
+    })
+
     sum2.subscribe(value => {
         succ2 = (value === (3 + 4));
     });
 
-    const final = Conduit.derived({sum1, sum2}, ({sum1, sum2}) => sum1 * sum2);
-
-    final.subscribe(value => {
-        succ3 = (value === (1 + 2) * (3 + 4));
-    })
-
     three.next(3);
 
     if( !succ1 || !succ2 || !succ3 ){
-        throw new Error(`Failed some calculations. (1 + 2) ${succ1 ? 'passed' : 'failed'} (3 + 4): ${succ2 ? 'passed' : 'failed'}; (1 + 2) * (3 + 4) ${succ3 ? 'passed' : 'failed'}}`);
+        errors.push(`Failed some calculations. (1 + 2) ${succ1 ? 'passed' : 'failed'} (3 + 4): ${succ2 ? 'passed' : 'failed'}; (1 + 2) * (3 + 4) ${succ3 ? 'passed' : 'failed'}}`);
+    }
+
+    if( timesRan !== 1 ){
+        errors.push(`Final conduit ran ${timesRan} times instead of once`);
     }
 
 });
@@ -69,8 +78,9 @@ test("Derive x + 1", () => {
     let expected = initial.map(v => v + 1);
 
     let x = new Conduit<number>();
+    let y = new Conduit<number>(1);
 
-    let derived = Conduit.derived({x}, ({x}) => x + 1);
+    let derived = Conduit.derived({x, y}, ({x, y}) => x + y);
 
     derived.subscribe(value => {
         let expect = expected.shift();
@@ -87,8 +97,44 @@ test("Derive x + 1", () => {
 
     x.complete();
 
+    if( derived.sealed ){
+        errors.push(`Derived conduit sealed before all sources completed`);
+    }
+
+    y.complete();
+
     if( !derived.sealed ){
-        errors.push(`Derived conduit didn't seal on completion of one of its sources`);
+        errors.push(`Derived conduit didn't seal after all sources completed`);
+    }
+
+    throwAny(errors);
+})
+
+test("Don't compute derived until ready", () => {
+    const errors: string[] = [];
+
+    let x = new Conduit<number>();
+    let y = new Conduit<number>();
+
+    let derived = Conduit.derived({x, y}, ({x, y}) => x + y);
+
+    let timesRan = 0;
+    let success = false;
+
+    derived.subscribe(value => {
+        success = (value === 3);
+        timesRan++;
+    });
+
+    x.next(1);
+    y.next(2);
+
+    if( !success ){
+        errors.push(`Derived conduit didn't compute when it was ready`);
+    }
+
+    if( timesRan !== 1 ){
+        errors.push(`Derived conduit ran ${timesRan} times instead of once`);
     }
 
     throwAny(errors);

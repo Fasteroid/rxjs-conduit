@@ -26,16 +26,19 @@ npm install rxjs-conduit
 ```ts
 import { Conduit } from 'rxjs-conduit/vanilla';
 
-const source = new Conduit<number>(42);
+const source = new Conduit<string>();
 
-// Late subscribers will instantly receive a "catch-up" if the conduit has a value
-source.subscribe(value => console.log(value + "a")); // -> 42a
+// Use .then for single-shot observations that auto-unsubscribe
+source.then(value => console.log(`${value} world`));
 
-// Conduits otherwise behave the same as a normal RxJS Subject
-source.next(100); // -> 100a
+source.next("hello"); // "hello world"
+source.next("hi");
 
-// "catch-up" is always to the most recent value
-source.subscribe(value => console.log(value + "b")); // -> 100b
+// Late subscriptions get updated with the last event
+source.subscribe(value => console.log(`${value} npm!`)); // "hi npm!"
+
+source.next("bye"); // "bye npm!"
+source.complete();
 ```
 
 ### Angular Integration
@@ -51,33 +54,33 @@ import { interval } from 'rxjs'
     styleUrls: ['./example.component.scss']
 })
 export class ExampleComponent {
-    
-    // create stress-free observavles that automatically complete when the component is destroyed!
-    protected ticker$ = new NgConduit<number>();
 
-    // learning the angular lifecycle is hard... but you don't have to with conduits!
-    public child$: ReadonlyConduit<ChildComponent> = new NgConduit<ChildComponent>();
+    /*
+        NgConduit injects DestroyRef so it can unsubscribe
+        itself when the component is destroyed.
+    */
+    private _child$ = new NgConduit<ChildComponent>();    
     
-    @ViewChild
-    protected set child(value: ChildComponent){ child$.next(value) }
+    /*
+        Remembering when in the Angular component lifecycle decorated
+        values like this initialize is error-prone for beginners.
+
+        With a conduit and a setter, this becomes asynchronous code
+        until it initializes properly.
+    */
+    @ViewChild(ChildComponent)
+        protected set child(value: ChildComponent){ 
+            _child$.next(value);
+        }
+        protected get child(){ 
+            return _child$.value as ChildComponent // slightly unsafe!
+        }
 
     constructor(){
-        // internal spliced subscriptions are cleaned up for you too!
-        ticker$.splice( interval(1000) );
+        _child$.then( child => child.doSomething() );
     }
+
 }
-```
-
-### Value Peeking
-```typescript
-const conduit = new Conduit<string>('initial');
-
-// Access the current value
-console.log(conduit.value); // 'initial'
-
-// And if there isn't a value yet...
-const empty = new Conduit<string>();
-console.log(empty.value); // Conduit.EMPTY
 ```
 
 ## API
@@ -86,26 +89,27 @@ console.log(empty.value); // Conduit.EMPTY
 Creates a new conduit, optionally with an initial value.
 
 ### `Conduit.derived(sources, formula): ReadonlyConduit<T>`
-Creates a conduit whose value is derived using a formula and a set of source conduits.
+Creates a conduit whose value is derived using a formula and a set of source conduits.  
+Completes when all sources complete and errors if *any* source errors.
 
 ### `splice(source, hard?): Conduit`
 Streams events from another subscribable into this conduit. &nbsp;Returns self.  
 💡 Use hard splices to pass through errors and completions from the source!
 
-### `hasValue: boolean`
-True if the conduit is pressurized with a value.
+### `sealed: boolean`
+True after it completes or errors.
 
 ### `value: T`
-Returns the most recent value. &nbsp;Throws an exception if there is no pressure.
+Returns the most recent value, or `Conduit.EMPTY` if there isn't one yet.
 
 ### `then(callback): Subscription`
 Similar to `subscribe`, but it only runs once then cleans up the subscription.
 
 ## ⚠️ Important Notes
 
-- Don't connect conduits in loops!
-- NgConduits garbage collect themselves as needed.
-
+- Don't connect conduits in loops under any circumstances!
+- Don't use this for anything mission-critical; I am a complete noob and
+  am actively learning new things every day!
 ## License
 
 MIT License.

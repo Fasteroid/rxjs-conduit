@@ -192,7 +192,7 @@ export class Conduit<T> extends Subject<T> {
      * #### Creates a conduit whose value is derived using a formula and a set of source conduits.  
      * - Won't compute until all sources have values.
      * - Recomputes whenever a source changes.
-     * - Completions and errors from its sources are passed through and will trigger cleanup.
+     * - Seals when all sources have completed, or if any source errors.
      * @param sources Variables to use in the formula
      * @param formula How to calculate the derived value
      * @returns The derived conduit
@@ -215,11 +215,18 @@ export class Conduit<T> extends Subject<T> {
             out.next( formula(args) );
         }
 
+        let completeIfFinished = () => {
+            // the latest we can run this is when the last source is about to complete, so we check for 1 left instead of 0
+            if( sources_kv.filter(source => !(source[1].sealed)).length === 1 ){
+                out.complete();
+            }
+        }
+
         for( let source of sources_kv ){
             out.sources.add( source[1].subscribe({
                 next: () => update(),
-                complete: () => out.complete(), // should trigger cleanup
-                error: (err) => out.error(err)  // should also trigger cleanup
+                complete: () => completeIfFinished(), // once all sources complete, we can complete since it can never change again
+                error: (err) => out.error(err)       // any source error should immediately error this conduit
             }) );
         }
 
