@@ -10,7 +10,7 @@ A special extension of RxJS Subjects, which remember the last value emitted to "
 ## Features
 
 - 🔄 **Late Subscriber Catch-Up**: Never miss a value again!
-- ✅ **Easy to Learn**: Probably easier to learn than RxJS, anyway.
+- 💪 **Flexible**: Easy to use even with minimal planning done in advance!
 - 🎯 **Type-Safe**: Full TypeScript support!
 - 🛠 **Framework Compatible**: Use the subclasses like `NgConduit` for easy cleanup on component destruction!
 
@@ -88,13 +88,15 @@ export class ExampleComponent {
 ### `new Conduit(first?: T)`
 Creates a new conduit, optionally with an initial value.
 
-### `Conduit.derived(sources, formula): ReadonlyConduit<T>`
+### `Conduit.derived(sources, formula): ReadonlyConduit`
 Creates a conduit whose value is derived using a formula and a set of source conduits.  
 Completes when all sources complete and errors if *any* source errors.
 
-### `splice(source, hard?): Conduit`
-Streams events from another subscribable into this conduit. &nbsp;Returns self.  
-💡 Use hard splices to pass through errors and completions from the source!
+### `splice(source, config?): Conduit`
+Streams values from a source subscribable into this conduit. &nbsp;Returns self.  
+
+### `unsplice(name): boolean`
+Disconnects a previous spliced source from this conduit, if it was named.
 
 ### `sealed: boolean`
 True after it completes or errors.
@@ -107,9 +109,9 @@ Similar to `subscribe`, but it only runs once then cleans up the subscription.
 
 ## ⚠️ Important Notes
 
-- Don't connect conduits in loops under any circumstances!
-- Don't use this for anything mission-critical; I am a complete noob and
-  am actively learning new things every day!
+- This is my first package!
+- I might push breaking changes without warning!
+- I'm still learning, so I make zero guarantee of things working correctly!
 ## License
 
 MIT License.

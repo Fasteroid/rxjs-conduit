@@ -15,7 +15,7 @@ test("Hard-splice pressure source to empty conduit", () => {
         if(value !== 1) errors.push(`Expected 1, got ${value}`);
     })
 
-    receiver.splice(pusher, true);
+    receiver.splice(pusher, {hard: true});
 
     if( !ran ) errors.push("Receiver conduit didn't receive");
 
@@ -39,7 +39,7 @@ test("Soft-splice pressure source to empty conduit", () => {
         if(value !== 1) errors.push(`Expected 1, got ${value}`);
     })
 
-    receiver.splice(pusher, false);
+    receiver.splice(pusher, {hard: false});
 
     if( !ran ) errors.push("Receiver conduit didn't receive");
 

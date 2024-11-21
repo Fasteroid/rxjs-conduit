@@ -4,6 +4,16 @@ import { SafeSubscriber } from "rxjs/internal/Subscriber";
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
 
 /**
+ * Configuration options for {@linkcode Conduit.splice}
+ * @param hard - Tells the receiving conduit to complete when the source completes. &nbsp;False by default.
+ * @param name - Can be used to overwrite (splice with the same name again) or {@link Conduit.unsplice | unsplice} an existing source.
+ */
+export type SpliceConfig = Partial<{
+    hard: boolean;
+    name: any;
+}>
+
+/**
  * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
  * 
  * Can be used to create reactive variables, splice dependencies, and more.
@@ -31,10 +41,14 @@ export class Conduit<T> extends Subject<T> {
     public get sealed(): boolean { return this._sealed; }
     private _sealed = false;
 
-    private sources: Set<Unsubscribable> = new Set();
+    private sources: Map<any, Unsubscribable> = new Map();
 
     private static readonly OK = Symbol('OK');
     private _thrownError: any = Conduit.OK;
+
+    private static readonly DEFAULT_CONFIG: SpliceConfig = {
+        hard: false
+    }
 
     /**
      * Creates a new conduit.
@@ -142,40 +156,65 @@ export class Conduit<T> extends Subject<T> {
     /**
      * #### Streams events from another {@link Subscribable} into this conduit.  
      * Returns self.
-     * 
-     * - Defaults to soft splice. &nbsp;If the source completes or errors, it will quietly disconnect from this conduit.
-     * - {@link hard | Hard splice} will pass through errors and completions from the source.
-     * - Splice subscriptions are automatically cleaned up when this conduit completes or errors.
+     * - Passing the {@link SpliceConfig.name | same name} will overwrite the old source.
+     * - {@link SpliceConfig.hard | Hard splices} will complete this conduit when the source completes.
+     * - Errors are always passed through.
+     * - Internal subscriptions will be cleaned up when this conduit is sealed.
      * - Doesn't work if this conduit is sealed.
-     * @param source Any subscribable source of values.
-     * @param hard   If true, passes through errors and completions from the source.
+     * @param source  Any subscribable source of values.
+     * @param config  {@link SpliceConfig | Configuration options for the splice.}
      * @returns self
      */
-    public splice(source: Subscribable<T>, hard?: boolean): Conduit<T> {
+    public splice(source: Subscribable<T>, config: SpliceConfig = Conduit.DEFAULT_CONFIG): Conduit<T> {
+        
         if( this.sealed ){
             console.warn("Attempted to splice into a sealed conduit!  This is probably a mistake!!");
             return this;
         }
+
+        const hard = config.hard ?? false;
         
         const subscriber = new SafeSubscriber<T>({
             next: (value) => {
                 this.next(value);
             },
             error: (err) => {
-                hard ? this.error(err) : this.cleanup(subscriber);
+                this.error(err);
             },
             complete: () => {
                 hard ? this.complete() : this.cleanup(subscriber);
             }
         });
         
+        let name = subscriber;
+
         source.subscribe(subscriber); // see what it does (it might complete immediately and clean itself up)
 
         if( !subscriber.closed ){ // if it didn't complete immediately, we'll need to clean it up later
-            this.sources.add(subscriber);
+            if( config.hasOwnProperty('name') ){ // if a name was provided, use it and try to replace the old one
+                name = config.name;
+                this.sources.get(name)?.unsubscribe();
+            }
+
+            this.sources.set(name, subscriber);
         }
 
         return this;
+    }
+
+    /**
+     * Disconnects a named {@link splice | spliced} source from this conduit, if it exists.
+     * @param name - the identifier of the splice to disconnect
+     * @returns if it was successful
+    */
+    public unsplice(name: any): boolean {
+        let it = this.sources.get(name);
+        if( it ){
+            it.unsubscribe();
+            this.sources.delete(name);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -223,11 +262,12 @@ export class Conduit<T> extends Subject<T> {
         }
 
         for( let source of sources_kv ){
-            out.sources.add( source[1].subscribe({
+            let subscriber = source[1].subscribe({
                 next: () => update(),
                 complete: () => completeIfFinished(), // once all sources complete, we can complete since it can never change again
-                error: (err) => out.error(err)       // any source error should immediately error this conduit
-            }) );
+                error: (err) => out.error(err)        // any source error should immediately error this conduit
+            })
+            out.sources.set(subscriber, subscriber);
         }
 
         return out;

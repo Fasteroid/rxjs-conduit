@@ -17,8 +17,7 @@ test("Sealing conduit closes subscription", () => {
 
 });
 
-test("Sealing conduit closes derived conduit", () => {
-
+test("Sealing last source of derived conduit closes it", () => {
     let errors: string[] = [];
 
     const conduit = new Conduit<number>();
@@ -32,10 +31,9 @@ test("Sealing conduit closes derived conduit", () => {
     if( !sub.closed ){
         errors.push("Derived conduit wasn't closed by source conduit completion");
     }
-
 });
 
-test("Sealing conduit closes spliced conduit", () => {
+test("Sealing source conduit closes hard-spliced conduit", () => {
 
     let errors: string[] = [];
 
@@ -43,14 +41,34 @@ test("Sealing conduit closes spliced conduit", () => {
 
     const spliced = new Conduit<number>();
 
-    spliced.splice(conduit, true);
+    spliced.splice(conduit, {hard: true});
 
     let sub = spliced.subscribe(() => {});
 
     conduit.complete();
 
     if( !sub.closed ){
-        errors.push("Spliced conduit wasn't closed by source conduit completion");
+        errors.push("Hard-spliced conduit wasn't closed by source conduit completion");
+    }
+
+});
+
+test("Sealing source conduit doesn't close soft-spliced conduit", () => {
+
+    let errors: string[] = [];
+
+    const conduit = new Conduit<number>();
+
+    const spliced = new Conduit<number>();
+
+    spliced.splice(conduit, {hard: false});
+
+    let sub = spliced.subscribe(() => {});
+
+    conduit.complete();
+
+    if( sub.closed ){
+        errors.push("Soft-spliced conduit was closed by source conduit completion");
     }
 
 });

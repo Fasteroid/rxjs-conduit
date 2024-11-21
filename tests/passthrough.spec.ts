@@ -1,7 +1,7 @@
 import test from "node:test";
 import { Conduit } from "../src/vanilla";
 
-test("Error passthrough behaviors", () => {
+test("Error passthrough normally", () => {
 
     const errors: string[] = [];
 
@@ -31,24 +31,24 @@ test("Error passthrough behaviors", () => {
 
 });
 
-test("Error passthrough on hard splice", () => {
+test("Error passthrough on spliced conduit", () => {
 
     const errors: string[] = [];
 
     const pusher   = new Conduit<number>(1);
     const receiver = new Conduit<number>();
 
-    receiver.splice(pusher, true);
+    receiver.splice(pusher);
 
     pusher.error( new Error("Test error") );
 
     if( !receiver.sealed ){
-        errors.push("Receiver conduit was not sealed by error in hard-spliced source");
+        errors.push("Receiver conduit was not sealed by error in source");
     }
 
     let ran = false;
     receiver.then({
-        next: () => { errors.push("receiver.then() ran its next handler after error") },
+        next: () => { errors.push("receiver.then() ran its next handler after the error") },
         error: () => { ran = true }
     })
 
@@ -56,33 +56,7 @@ test("Error passthrough on hard splice", () => {
         errors.push("receiver.then() didn't run its error handler");
     }
 
-})
-
-test("Error passthrough on soft splice", () => {
-
-    const errors: string[] = [];
-
-    const pusher   = new Conduit<number>(1);
-    const receiver = new Conduit<number>();
-
-    receiver.splice(pusher, false);
-
-    let ran = false;
-    receiver.subscribe({
-        error: () => { ran = true }
-    })
-
-    pusher.error( new Error("Test error") );
-
-    if( !receiver.sealed ){
-        errors.push("Receiver conduit was sealed by error in soft-spliced source");
-    }
-
-    if( ran ){
-        errors.push("Receiver conduit called error handler");
-    }
-
-})
+});
 
 test("Error passthrough on derived conduit", () => {
 
