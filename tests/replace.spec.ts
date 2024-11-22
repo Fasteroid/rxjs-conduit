@@ -29,7 +29,7 @@ test("Splice replacement works", () => {
     source2.next(2);
 
     receiver.then( (value) => {
-        if( value !== 1 ) errors.push(`Unsplice didn't work; source2 should have been removed`);
+        if( value !== 1 ) errors.push(`unsplice("b") didn't work; source2 should have been removed`);
         ran = true;
     })
 
@@ -44,6 +44,18 @@ test("Splice replacement works", () => {
     })
 
     if( !ran ) errors.push("Third .then(...) didn't run");
+    ran = false;
+
+    receiver.unsplice();
+
+    source2.next(3);
+
+    receiver.then( (value) => {
+        if( value === 3 ) errors.push(`unsplice() didn't work; everything should have been removed`);
+        ran = true;
+    })
+
+    if( !ran ) errors.push("Fourth .then(...) didn't run");
 
     throwAny(errors);
 

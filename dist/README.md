@@ -1,6 +1,6 @@
 # Conduits!
 
-A special extension of RxJS Subjects, which remember the last value emitted to "catch up" any late subscribers.
+A special kind of RxJS Subject, which preserves the last value emitted for late subscribers.  
 
 ## Dude just use signals???
 
@@ -92,11 +92,21 @@ Creates a new conduit, optionally with an initial value.
 Creates a conduit whose value is derived using a formula and a set of source conduits.  
 Completes when all sources complete and errors if *any* source errors.
 
-### `splice(source, config?): Conduit`
-Streams values from a source subscribable into this conduit. &nbsp;Returns self.  
+### `subscribe(observer): Subscription`
+Adds a subscription to this conduit, which will receive reactive updates.
 
-### `unsplice(name): boolean`
-Disconnects a previous spliced source from this conduit, if it was named.
+### `then(callback): Subscription`
+Similar to `subscribe`, but it only runs once then cleans up the subscription.
+
+### `unsubscribe(): void`
+Removes all subscribers to this conduit without notifying them.
+
+### `splice(source, config?): Conduit`
+Adds a source to this conduit, which will feed it values reactively. &nbsp;Returns self.  
+
+### `unsplice(name?): boolean`
+Disconnects a previous spliced source from this conduit, if it was named.  
+Pass no name to unsplice everything.
 
 ### `sealed: boolean`
 True after it completes or errors.
@@ -104,8 +114,8 @@ True after it completes or errors.
 ### `value: T`
 Returns the most recent value, or `Conduit.EMPTY` if there isn't one yet.
 
-### `then(callback): Subscription`
-Similar to `subscribe`, but it only runs once then cleans up the subscription.
+### `flush(): void`
+Sets the conduit back to `Conduit.EMPTY` without notifying subscribers.
 
 ## ⚠️ Important Notes
 

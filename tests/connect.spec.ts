@@ -45,7 +45,7 @@ test("Soft-splice pressure source to empty conduit", () => {
 
     pusher.complete();
 
-    if( receiver.closed ) errors.push("Soft-spliced receiver was closed by completion its source");
+    if( receiver.sealed ) errors.push("Soft-spliced receiver was closed by completion its source");
 
     throwAny(errors);
 })

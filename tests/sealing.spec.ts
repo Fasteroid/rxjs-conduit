@@ -17,58 +17,52 @@ test("Sealing conduit closes subscription", () => {
 
 });
 
-test("Sealing last source of derived conduit closes it", () => {
+test("Sealing last source of derived conduit seals it", () => {
     let errors: string[] = [];
 
-    const conduit = new Conduit<number>();
+    const source = new Conduit<number>();
 
-    const derived = Conduit.derived({conduit}, ({conduit}) => conduit);
+    const derived = Conduit.derived({source}, ({source}) => source);
 
-    let sub = derived.subscribe(() => {});
+    source.complete();
 
-    conduit.complete();
-
-    if( !sub.closed ){
-        errors.push("Derived conduit wasn't closed by source conduit completion");
+    if( !derived.sealed ){
+        errors.push("Derived conduit wasn't sealed by its last source completing");
     }
 });
 
-test("Sealing source conduit closes hard-spliced conduit", () => {
+test("Sealing source conduit seals hard-spliced conduit", () => {
 
     let errors: string[] = [];
 
-    const conduit = new Conduit<number>();
+    const source = new Conduit<number>();
 
     const spliced = new Conduit<number>();
 
-    spliced.splice(conduit, {hard: true});
+    spliced.splice(source, {hard: true});
 
-    let sub = spliced.subscribe(() => {});
+    source.complete();
 
-    conduit.complete();
-
-    if( !sub.closed ){
-        errors.push("Hard-spliced conduit wasn't closed by source conduit completion");
+    if( !source.sealed ){
+        errors.push("Hard-spliced conduit wasn't sealed by source conduit sealing");
     }
 
 });
 
-test("Sealing source conduit doesn't close soft-spliced conduit", () => {
+test("Sealing source conduit doesn't seal soft-spliced conduit", () => {
 
     let errors: string[] = [];
 
-    const conduit = new Conduit<number>();
+    const source = new Conduit<number>();
 
     const spliced = new Conduit<number>();
 
-    spliced.splice(conduit, {hard: false});
+    spliced.splice(source, {hard: false});
 
-    let sub = spliced.subscribe(() => {});
+    source.complete();
 
-    conduit.complete();
-
-    if( sub.closed ){
-        errors.push("Soft-spliced conduit was closed by source conduit completion");
+    if( source.sealed ){
+        errors.push("Soft-spliced conduit was sealed by source conduit completion");
     }
 
 });

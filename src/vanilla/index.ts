@@ -1,32 +1,39 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take } from "rxjs";
-import { SafeSubscriber } from "rxjs/internal/Subscriber";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike } from "rxjs";
+import { SafeSubscriber, Subscriber } from "rxjs/internal/Subscriber";
+import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
-export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' >;
+export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'disconnect' | 'empty'>;
 
 /**
  * Configuration options for {@linkcode Conduit.splice}
  * @param hard - Tells the receiving conduit to complete when the source completes. &nbsp;False by default.
  * @param name - Can be used to overwrite (splice with the same name again) or {@link Conduit.unsplice | unsplice} an existing source.
  */
-export type SpliceConfig = Partial<{
+export type SourceConfig = Partial<{
     hard: boolean;
     name: any;
 }>
 
 /**
- * A special extension of the RxJS {@linkcode Subject}, which preserves the last value emitted for late subscribers.
- * 
- * Can be used to create reactive variables, splice dependencies, and more.
- * 
- * Do NOT connect circularly or you will create an infinite loop.
+ * A special kind of {@linkcode Subject}, which preserves the last value emitted for late subscribers.  
+ * Has many additional features to make it easier to work with reactive data.
  */
-export class Conduit<T> extends Subject<T> {
+export class Conduit<T, SourceKey = any> extends Observable<T> implements SubjectLike<T> {
 
     /** 
      * The {@link value} of a conduit that has not yet received one.
      */
     public static readonly EMPTY = Symbol('EMPTY');
 
+    /**
+     * The {@link error} of a conduit that has not yet errored.
+     */
+    private static readonly OK = Symbol('OK');
+
+    private static readonly DEFAULT_CONFIG: SourceConfig = {
+        hard: false
+    }
+    
     /**
      * The most recent value pushed through this conduit.  
      * If nothing has been pushed yet, this will be equal to {@linkcode Conduit.EMPTY}.
@@ -41,15 +48,10 @@ export class Conduit<T> extends Subject<T> {
     public get sealed(): boolean { return this._sealed; }
     private _sealed = false;
 
-    private sources: Map<any, Unsubscribable> = new Map();
-
-    private static readonly OK = Symbol('OK');
     private _thrownError: any = Conduit.OK;
 
-    private static readonly DEFAULT_CONFIG: SpliceConfig = {
-        hard: false
-    }
-
+    private sources:      Map< SourceKey | Unsubscribable,  Unsubscribable > = new Map();
+    private destinations: Set< Observer<T> > = new Set();
     /**
      * Creates a new conduit.
      * @param first an optional first value to pressurize the conduit with.
@@ -61,27 +63,43 @@ export class Conduit<T> extends Subject<T> {
         if(arguments.length > 0) this.next(first!);
     }
 
+    private seal(): void {
+        this.unsplice();
+        this._sealed = true;
+    }
+
     /**
-     * Errors this conduit and {@link sealed | seals} it.
+     * Errors this conduit and {@link sealed | seals} it.  
+     * Passes the error to all observers of this conduit.
      * 
      * *This is a no-op if the conduit is already sealed.*
      */
-    public override error(err: any): void {
+    public error(err: any): void {
         if( this.sealed ) return;
         this._thrownError = err;
-        super.error(err);
-        this.cleanup();
+        this.destinations.forEach( dest => dest.error(err) );
+        this.destinations.clear();
+        this.seal();
     }
 
     /**
      * Completes this conduit and {@link sealed | seals} it.  
+     * Passes the completion to all observers of this conduit.
      *
      * *This is a no-op if the conduit is already sealed.*
      */
-    public override complete(): void {
+    public complete(): void {
         if( this.sealed ) return;
-        super.complete();
-        this.cleanup();
+        this.destinations.forEach( dest => {
+            try {
+                dest.complete();
+            } 
+            catch (err) {
+                dest.error(err);
+            }
+        });
+        this.destinations.clear();
+        this.seal();
     }
 
     /**
@@ -89,83 +107,77 @@ export class Conduit<T> extends Subject<T> {
      *
      * ***This is a no-op if the conduit is sealed!***
      */
-    public override next(value: T): void {
+    public next(value: T): void {
         if( this.sealed ){
             console.warn("Called .next() on a sealed conduit!  This is probably a mistake!!");
             return;
         }
         this._value = value;
-        super.next(value);
+        this.destinations.forEach( dest => {
+            try {
+                dest.next(value);
+            } 
+            catch (err) {
+                dest.error(err);
+            }
+        });
     }
 
     /**
-     * Unsubscribes everything connected to this conduit and {@link sealed | seals} it.  
-     */
-    public override unsubscribe(): void {
-        super.unsubscribe();
-        this.cleanup();
-    }
-
-    /**
-     * Subscribes to this conduit.  
-     * If this conduit {@link hasValue | has a value}, the new subscriber will receive it immediately.
+     * #### Adds a destination to this conduit.
+     * If this conduit has a value, the new subscriber will receive it immediately.
      * @param callback - an {@link Observer | observer} or callback function
      * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
-        const subscription = new SafeSubscriber(callback);
+        const destination = new SafeSubscriber(callback);
 
         if(this._thrownError !== Conduit.OK){
-            subscription.error(this._thrownError); // error first if there is one
-            subscription.unsubscribe();            // remove
-            return subscription;
+            destination.error(this._thrownError); // error first if there is one
+            return EMPTY_SUBSCRIPTION;
         }
 
         if(this._value !== Conduit.EMPTY){
-            subscription.next(this._value); // send the value if there is one
+            try {
+                destination.next(this._value); // send the value if there is one
+            }
+            catch (err) {
+                destination.error(err);
+                return EMPTY_SUBSCRIPTION;
+            }
         }
 
         if( this.sealed ){
-            subscription.complete();    // sealed and wasn't an error; therefore complete
-            subscription.unsubscribe(); // remove
-            return subscription;
+            destination.complete();    // sealed and wasn't an error; therefore complete
+            return EMPTY_SUBSCRIPTION;
         }
 
-        super.subscribe(subscription);
+        this.destinations.add(destination);
+        destination.add(() => this.destinations.delete(destination));
 
-        return subscription;
+        return destination;
     }
 
     /**
-     * Gateway for clearing internal subscriptions.  
-     * Call with no arguments to seal the conduit and clear all internal subscriptions.
-     * @internal
+     * Removes all destinations from this conduit without notifying them.
      */
-    protected cleanup(subscriber?: Unsubscribable): void {
-        if( !subscriber ){
-            this.sources.forEach( source => source.unsubscribe() );
-            this.sources.clear();
-            this._sealed = true;
-        }
-        else {
-            subscriber.unsubscribe();
-            this.sources.delete(subscriber);
-        }
+    public unsubscribe(): void {
+        this.destinations.clear();
     }
 
     /**
-     * #### Streams events from another {@link Subscribable} into this conduit.  
+     * #### Adds a source {@link Subscribable} to this conduit.  
      * Returns self.
-     * - Passing the {@link SpliceConfig.name | same name} will overwrite the old source.
-     * - {@link SpliceConfig.hard | Hard splices} will complete this conduit when the source completes.
+     * - Passing the {@link SourceConfig.name | same name} will overwrite the old source.
+     * - {@link SourceConfig.hard | Hard splices} will complete this conduit when the source completes.
      * - Errors are always passed through.
      * - Internal subscriptions will be cleaned up when this conduit is sealed.
      * - Doesn't work if this conduit is sealed.
      * @param source  Any subscribable source of values.
-     * @param config  {@link SpliceConfig | Configuration options for the splice.}
+     * @param config  {@link SourceConfig | Configuration options for the splice.}
      * @returns self
      */
-    public splice(source: Subscribable<T>, config: SpliceConfig = Conduit.DEFAULT_CONFIG): Conduit<T> {
+    public splice(source: Subscribable<T>, config: SourceConfig = Conduit.DEFAULT_CONFIG): Conduit<T> {
         
         if( this.sealed ){
             console.warn("Attempted to splice into a sealed conduit!  This is probably a mistake!!");
@@ -182,7 +194,7 @@ export class Conduit<T> extends Subject<T> {
                 this.error(err);
             },
             complete: () => {
-                hard ? this.complete() : this.cleanup(subscriber);
+                hard ? this.complete() : this.unsplice(subscriber);
             }
         });
         
@@ -203,18 +215,30 @@ export class Conduit<T> extends Subject<T> {
     }
 
     /**
-     * Disconnects a named {@link splice | spliced} source from this conduit, if it exists.
+     * #### Removes a source from this conduit.
+     * - Pass `name` to remove a named {@link splice} from this conduit.
+     * - Pass nothing to remove *everything*.
      * @param name - the identifier of the splice to disconnect
      * @returns if it was successful
     */
-    public unsplice(name: any): boolean {
-        let it = this.sources.get(name);
-        if( it ){
-            it.unsubscribe();
-            this.sources.delete(name);
+    public unsplice(name?: SourceKey | Subscriber<T>): boolean {
+        if( arguments.length === 0 ){
+            this.sources.forEach( source => source.unsubscribe() );
+            this.sources.clear();
             return true;
         }
-        return false;
+        else {
+            this.sources.get(name!)?.unsubscribe();
+            return this.sources.delete(name!);
+        }
+    }
+
+    /**
+     * Resets this conduit to {@link Conduit.EMPTY | empty}.
+     * Does not notify subscribers.
+     */
+    public flush(){
+        this._value = Conduit.EMPTY;
     }
 
     /**
@@ -224,7 +248,8 @@ export class Conduit<T> extends Subject<T> {
      */
     public then(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
         const subscriber = new SafeSubscriber(callback);
-        return this.pipe( take(1) ).subscribe(subscriber);
+        const sub = this.pipe( take(1) ).subscribe(subscriber);
+        return sub;
     }
 
     /**
