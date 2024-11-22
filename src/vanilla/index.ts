@@ -2,7 +2,7 @@ import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Ob
 import { SafeSubscriber, Subscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
-export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'disconnect' | 'empty'>;
+export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice'>;
 
 /**
  * Configuration options for {@linkcode Conduit.splice}
