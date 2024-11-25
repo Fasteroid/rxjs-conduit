@@ -1,13 +1,13 @@
 {
     "name": "rxjs-conduit",
-    "version": "3.3.0",
+    "version": "3.4.0",
     "description": "A special kind of RxJS Subject, which preserves the last value emitted for late subscribers.",
     "main": "index.js",
     "module": "index.js",
     "types": "index.d.ts",
     "scripts": {
-        "test":  "node -r esbuild-register --test **/*.spec.ts",
-        "experiment":  "node -r esbuild-register --test tests/experiment.spec.ts",
+        "test": "node -r esbuild-register --test **/*.spec.ts",
+        "experiment": "node -r esbuild-register --test tests/experiment.spec.ts",
         "prepublish": "tsc && npm run test"
     },
     "author": "Fasteroid",
@@ -29,14 +29,14 @@
     },
     "homepage": "https://github.com/Fasteroid/rxjs-conduit#readme",
     "devDependencies": {
+        "@angular/core": ">=16.0.0",
         "@types/node": "^20.17.6",
         "esbuild-register": "^3.6.0",
-        "typescript": "^5.6.3",
-        "@angular/core": ">=16.0.0"
+        "typescript": "^5.6.3"
     },
     "peerDependencies": {
-        "rxjs": ">=6.6.7",
-        "@angular/core": ">=16.0.0"
+        "@angular/core": ">=16.0.0",
+        "rxjs": ">=6.6.7"
     },
     "peerDependenciesMeta": {
         "@angular/core": {
