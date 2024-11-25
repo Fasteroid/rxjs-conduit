@@ -252,6 +252,23 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         return sub;
     }
 
+    /** 
+     * Returns a fallback value if this conduit is empty, or {@linkcode value} otherwise.
+     * @param fallback The value to return if this conduit is empty.
+     */
+    public valueOrDefault(fallback: T): T {
+        return this.value === Conduit.EMPTY ? fallback : this.value;
+    }
+
+    /** 
+     * Returns the value if this conduit is not empty, or throws an error otherwise.
+     * @param reason The error to throw if this conduit is empty.
+     */
+    public valueOrThrow(reason: any): T {
+        if( this.value === Conduit.EMPTY ) throw reason;
+        return this.value;
+    }
+
     /**
      * #### Creates a conduit whose value is derived using a formula and a set of source conduits.  
      * - Won't compute until all sources have values.
