@@ -1,6 +1,6 @@
 {
     "name": "rxjs-conduit",
-    "version": "3.2.0",
+    "version": "3.3.0",
     "description": "A special kind of RxJS Subject, which preserves the last value emitted for late subscribers.",
     "main": "index.js",
     "module": "index.js",
