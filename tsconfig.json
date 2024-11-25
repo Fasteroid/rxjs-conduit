@@ -10,6 +10,7 @@
             "es6",
             "dom",
             "es2016",
+            "ES2021.WeakRef"
         ],                                                   /* Specify library files to be included in the compilation. */
 
         "declaration": true,                                 /* Generates corresponding '.d.ts' file. */
@@ -35,7 +36,8 @@
         "exactOptionalPropertyTypes": true,                  /* Interpret optional property types as written, rather than adding 'undefined'. */
     },
     "include": [
-        "src/**/*.ts"
+        "src/**/*.ts",
+        "experiments/**/*.ts"
     ],
     "exclude": [
         "node_modules",
