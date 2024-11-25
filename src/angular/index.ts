@@ -1,7 +1,7 @@
 import { DestroyRef, inject } from "@angular/core";
 import { Conduit, ReadonlyConduit } from "../vanilla";
 
-export class NgConduit<T> extends Conduit<T> {
+export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
 
     /**
      * Creates a new NgConduit.  It will cease to exist when the current component is destroyed.
