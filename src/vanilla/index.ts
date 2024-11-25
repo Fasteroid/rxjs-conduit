@@ -9,9 +9,9 @@ export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete'
  * @param hard - Tells the receiving conduit to complete when the source completes. &nbsp;False by default.
  * @param name - Can be used to overwrite (splice with the same name again) or {@link Conduit.unsplice | unsplice} an existing source.
  */
-export type SourceConfig = Partial<{
+export type SourceConfig<T> = Partial<{
     hard: boolean;
-    name: any;
+    name: T;
 }>
 
 /**
@@ -30,7 +30,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      */
     private static readonly OK = Symbol('OK');
 
-    private static readonly DEFAULT_CONFIG: SourceConfig = {
+    private static readonly DEFAULT_CONFIG: SourceConfig<any> = {
         hard: false
     }
     
@@ -177,7 +177,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @param config  {@link SourceConfig | Configuration options for the splice.}
      * @returns self
      */
-    public splice(source: Subscribable<T>, config: SourceConfig = Conduit.DEFAULT_CONFIG): Conduit<T> {
+    public splice(source: Subscribable<T>, config: SourceConfig<SourceKey> = Conduit.DEFAULT_CONFIG): Conduit<T> {
         
         if( this.sealed ){
             console.warn("Attempted to splice into a sealed conduit!  This is probably a mistake!!");
@@ -198,7 +198,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             }
         });
         
-        let name = subscriber;
+        let name: SafeSubscriber<T> | SourceKey = subscriber;
 
         source.subscribe(subscriber); // see what it does (it might complete immediately and clean itself up)
 
