@@ -1,8 +1,16 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike } from "rxjs";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike, BehaviorSubject, takeWhile, map, filter } from "rxjs";
 import { SafeSubscriber, Subscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
+
+
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice'>;
+
+const PROXY_SOURCE = Symbol('PROXY');
+
+type InternalSafeSubscriber<T> = SafeSubscriber<T> & {
+    [PROXY_SOURCE]?: true;
+}
 
 /**
  * Configuration options for {@linkcode Conduit.splice}
@@ -28,7 +36,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     /**
      * The {@link error} of a conduit that has not yet errored.
      */
-    private static readonly OK = Symbol('OK');
+    protected static readonly OK = Symbol('OK');
 
     private static readonly DEFAULT_CONFIG: SourceConfig<any> = {
         hard: false
@@ -57,7 +65,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
     // all observers of this conduit
     // all are removed when unsubscribe() is called
-    private destinations: Set< SafeSubscriber<T> > = new Set();
+    private destinations: Set< InternalSafeSubscriber<T> > = new Set();
 
     /**
      * Creates a new conduit.
@@ -133,11 +141,62 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         });  
     }
 
-    public inner<U>( getter: (outerValue: T) => Conduit<U> ): Conduit<U> {
+    public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
         
-        let 
+        let proxy = new Conduit<U>();
+        let actual = () => this.value !== Conduit.EMPTY ? getter(this.value) : undefined;
+        let valve: boolean = true;
 
+        // autosplice the actual to the proxy whenever the container changes
+        this.subscribe({
+            next: (container) => {
+                let managed = actual()!.pipe( filter( () => valve ) );
+                managed.subscribe({
+                    next: (value) => {
+                        valve = false;
+                        proxy.next(value);
+                        valve = true;
+                    },
+                    complete: () => {
+                        valve = false;
+                        proxy.complete();
+                        valve = true;
+                    },
+                    error: (err) => {
+                        valve = false;
+                        proxy.error(err);
+                        valve = true;
+                    }                 
+                })
+            },
+            complete: () => {
+                proxy.complete();
+            },
+            error: (err) => {
+                proxy.error(err);
+            }
+        });
 
+        proxy.pipe( filter( () => valve ) ).subscribe({
+            next: (value) => {
+                valve = false;
+                actual()?.next(value);
+                valve = true;
+            },
+            complete: () => {
+                valve = false;
+                actual()?.complete();
+                valve = true;
+            },
+            error: (err) => {
+                valve = false;
+                actual()?.error(err);
+                valve = true;
+            }
+        });
+
+        return proxy;
+        
     }
 
     /**
@@ -147,7 +206,13 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
-        const destination = new SafeSubscriber(callback);
+        return this.subscribeProxy(callback);
+    }
+
+    private subscribeProxy(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined, proxy?: true): Subscription {
+        const destination = new SafeSubscriber<T>(callback) as InternalSafeSubscriber<T>;
+
+        if( proxy ) destination[PROXY_SOURCE] = true;
 
         if(this._thrownError !== Conduit.OK){
             destination.error(this._thrownError); // error first if there is one
