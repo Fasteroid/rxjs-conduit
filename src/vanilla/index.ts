@@ -23,12 +23,12 @@ export type SourceConfig<T> = Partial<{
 }>
 
 /**
- * A special kind of {@linkcode Subject}, which preserves the last value emitted for late subscribers.  
+ * A special kind of {@linkcode Subject}, which preserves the last value emitted for late subscribers.
  * Has many additional features to make it easier to work with reactive data.
  */
 export class Conduit<T, SourceKey = any> extends Observable<T> implements SubjectLike<T> {
 
-    /** 
+    /**
      * The {@link value} of a conduit that has not yet received one.
      */
     public static readonly EMPTY = Symbol('EMPTY');
@@ -41,16 +41,16 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     private static readonly DEFAULT_CONFIG: SourceConfig<any> = {
         hard: false
     }
-    
+
     /**
-     * The most recent value pushed through this conduit.  
+     * The most recent value pushed through this conduit.
      * If nothing has been pushed yet, this will be equal to {@linkcode Conduit.EMPTY}.
      */
     public get value(): T | typeof Conduit.EMPTY { return this._value; }
     private _value: T | typeof Conduit.EMPTY = Conduit.EMPTY;
 
     /**
-     * Conduits are sealed by {@linkcode complete}, {@linkcode error}, and {@linkcode unsubscribe}.  
+     * Conduits are sealed by {@linkcode complete}, {@linkcode error}, and {@linkcode unsubscribe}.
      * Once sealed, a conduit becomes a cold observable and will not accept new values.
      */
     public get sealed(): boolean { return this._sealed; }
@@ -59,9 +59,9 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     // so we can error anything that subscribes after we seal
     private _thrownError: any = Conduit.OK;
 
-    // all sources that feed this conduit, indexed by either themselves, or an identifier for named splices
+    // all sources that feed this conduit
     // all are unsubscribed when the conduit seals
-    private sources:      Map< SourceKey | Unsubscribable,  Unsubscribable > = new Map();
+    private sources:      Map< SourceKey,  Unsubscribable > = new Map();
 
     // all observers of this conduit
     // all are removed when unsubscribe() is called
@@ -84,9 +84,9 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /**
-     * Errors this conduit and {@link sealed | seals} it.  
+     * Errors this conduit and {@link sealed | seals} it.
      * Passes the error to all observers of this conduit.
-     * 
+     *
      * *This is a no-op if the conduit is already sealed.*
      */
     public error(err: any): void {
@@ -100,7 +100,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /**
-     * Completes this conduit and {@link sealed | seals} it.  
+     * Completes this conduit and {@link sealed | seals} it.
      * Passes the completion to all observers of this conduit.
      *
      * *This is a no-op if the conduit is already sealed.*
@@ -110,7 +110,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         this.destinations.forEach( dest => {
             try {
                 dest.complete();
-            } 
+            }
             catch (err) {
                 dest.error(err);
             }
@@ -134,40 +134,50 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             try {
                 // possibility: change destinations to Set< CustomObserver<T> > and use a nullable method here to transmit source
                 dest.next(value);
-            } 
+            }
             catch (err) {
                 dest.error(err);
             }
-        });  
+        });
     }
 
+    /**
+     * #### Creates a pointer to the conduit {@linkcode getter} returns now or in the future.
+     * Enigma machine style.
+     * - Subscribing to it will stream values from the conceptual "inner" conduit, *even as it changes due to the outer conduit changing!*
+     * - Writing to the proxy will also update the current "inner" conduit.
+     * - This is the coolest method in the whole library.
+     * @param getter - how to fetch the inner source from the outer (this) conduit
+     * @returns epic proxy conduit
+     */
     public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
-        
-        let proxy = new Conduit<U>();
-        let actual = () => this.value !== Conduit.EMPTY ? getter(this.value) : undefined;
-        let valve: boolean = true;
+
+        let proxy  = new Conduit<U>();
+        let actual = () => this.value !== Conduit.EMPTY ? getter(this.value) : undefined; // getter so we don't closure
+        let gate   = new Gate(); // le mighty endlosschleifenverhinderer
 
         // autosplice the actual to the proxy whenever the container changes
+        // okay to let this subscription leak since it's our overridden subscribe and it'll catch it for us
         this.subscribe({
             next: (container) => {
-                let managed = actual()!.pipe( filter( () => valve ) );
-                managed.subscribe({
+                this.unsplice(proxy as SourceKey);                           // unsplice the old one, using proxy as an identifier
+                let managed = getter(container).pipe( filter( gate.open ) ); // only let values through when the gate is open
+
+                let sub = managed.subscribe({                                // close the gate when any of this happens
                     next: (value) => {
-                        valve = false;
-                        proxy.next(value);
-                        valve = true;
+                        gate.run( () => proxy.next(value) );
                     },
+
+                    // TODO: should we actually pipe these?
                     complete: () => {
-                        valve = false;
-                        proxy.complete();
-                        valve = true;
+                        gate.run( () => proxy.complete() );
                     },
                     error: (err) => {
-                        valve = false;
-                        proxy.error(err);
-                        valve = true;
-                    }                 
+                        gate.run( () => proxy.error(err) );
+                    }
                 })
+
+                this.sources.set(proxy as SourceKey, sub);                   // splice the new one
             },
             complete: () => {
                 proxy.complete();
@@ -177,26 +187,21 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             }
         });
 
-        proxy.pipe( filter( () => valve ) ).subscribe({
+        // pipe stuff from the proxy back to the actual... carefully.
+        proxy.pipe( filter( gate.open ) ).subscribe({
             next: (value) => {
-                valve = false;
-                actual()?.next(value);
-                valve = true;
+                gate.run( () => actual()?.next(value) );
             },
             complete: () => {
-                valve = false;
-                actual()?.complete();
-                valve = true;
+                gate.run( () => actual()?.complete() );
             },
             error: (err) => {
-                valve = false;
-                actual()?.error(err);
-                valve = true;
+                gate.run( () => actual()?.error(err) );
             }
         });
 
         return proxy;
-        
+
     }
 
     /**
@@ -248,7 +253,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /**
-     * #### Adds a source {@link Subscribable} to this conduit.  
+     * #### Adds a source {@link Subscribable} to this conduit.
      * Returns self.
      * - Passing the {@link SourceConfig.name | same name} will overwrite the old source.
      * - {@link SourceConfig.hard | Hard splices} will complete this conduit when the source completes.
@@ -260,14 +265,14 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @returns self
      */
     public splice(source: Subscribable<T>, config: SourceConfig<SourceKey> = Conduit.DEFAULT_CONFIG): Conduit<T> {
-        
+
         if( this.sealed ){
             console.warn("Attempted to splice into a sealed conduit!  This is probably a mistake!!");
             return this;
         }
 
         const hard = config.hard ?? false;
-        
+
         // fun fact: new SafeSubscriber<T>(this) is just a hard splice!
 
         const subscriber = new SafeSubscriber<T>({
@@ -278,10 +283,10 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
                 this.error(err);
             },
             complete: () => {
-                hard ? this.complete() : this.unsplice(subscriber);
+                hard ? this.complete() : this.unsplice(subscriber as SourceKey);
             }
         });
-        
+
         let name: SafeSubscriber<T> | SourceKey = subscriber;
 
         source.subscribe(subscriber); // see what it does (it might complete immediately and clean itself up)
@@ -292,7 +297,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
                 this.sources.get(name)?.unsubscribe();
             }
 
-            this.sources.set(name, subscriber);
+            this.sources.set(name as SourceKey, subscriber); // this cast is complete bullshit, but it's fine
         }
 
         return this;
@@ -305,7 +310,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @param name - the identifier of the splice to disconnect
      * @returns if it was successful
     */
-    public unsplice(name?: SourceKey | Subscriber<T>): boolean {
+    public unsplice(name?: SourceKey): boolean {
         if( arguments.length === 0 ){
             this.sources.forEach( source => source.unsubscribe() );
             this.sources.clear();
@@ -336,7 +341,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         return sub;
     }
 
-    /** 
+    /**
      * Returns the conduit's {@link value}, or returns the {@link fallback} if it's empty.
      * @param fallback The value to return if this conduit is empty.
      */
@@ -344,7 +349,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         return this.value === Conduit.EMPTY ? fallback : this.value;
     }
 
-    /** 
+    /**
      * Returns the conduit's {@link value}, or throws the {@link reason} if it's empty.
      * @param reason The error to throw if this conduit is empty.
      */
@@ -354,7 +359,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /**
-     * #### Creates a conduit whose value is derived using a formula and a set of source conduits.  
+     * #### Creates a conduit whose value is derived using a formula and a set of source conduits.
      * - Won't compute until all sources have values.
      * - Recomputes whenever a source changes.
      * - Seals when all sources have completed, or if any source errors.
@@ -363,15 +368,15 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @returns The derived conduit
      */
     public static derived<
-        Result, 
-        Sources extends {[k: string]: ReadonlyConduit<any>}, 
-    >( 
+        Result,
+        Sources extends {[k: string]: ReadonlyConduit<any>},
+    >(
         sources: Sources,
         formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
-    ): 
+    ):
     ReadonlyConduit<Result> {
         let out = new Conduit<Result>();
-        
+
         let sources_kv = Object.entries(sources);
 
         let update = () => {
@@ -398,5 +403,23 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
         return out;
     }
-    
+
+}
+
+class Gate {
+    private _open: boolean = true;
+
+    public run<T>( section: () => T ): T {
+        let result: T;
+        this._open = false;
+        try {
+            result = section();
+        }
+        finally {
+            this._open = true;
+        }
+        return result;
+    }
+
+    public readonly open = () => this._open;
 }

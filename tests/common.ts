@@ -4,22 +4,39 @@ export function throwAny(errs: string[]){
     if(errs.length > 0) throw new Error("One or more exceptions were thrown:\n" + errs.join('\n'));
 }
 
-export type Emission = [name: string, value: any]
+type ErrorEmission = [
+    "error",
+    any
+]
+
+type NextEmission<T> = [
+    "next",
+    T
+]
+
+type CompleteEmission = [
+    "complete"
+]
+
+export type Emission<T> = ErrorEmission | NextEmission<T> | CompleteEmission;
 
 export function assertEmissions<T>(
-    expectedEmits: Emission[],
+    expectedEmits: Emission<T>[],
     errors: string[],
     source: string = "default"
 ): Observer<T> {
     return {
         next: (x) => {
+
             let emission = expectedEmits.shift();
             if( emission === undefined ) {
                 errors.push(`${source}: Next ran too many times`);
                 return;
             }
 
-            if( emission[1] !== x || emission[0] !== "next" ){
+            let matcher = emission[2] ?? ((a, b) => a === b);
+
+            if( !matcher(x, emission[1]) || emission[0] !== "next" ){
                 errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got next(${x})`);
             }
             else {
@@ -49,7 +66,9 @@ export function assertEmissions<T>(
                 return;
             }
 
-            if( emission[0] !== "error" || err !== emission[1] ){
+            let matcher = emission[2] ?? ((a, b) => a === b);
+
+            if( !matcher(err, emission[1]) || emission[0] !== "next" ){
                 errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got error(${err})`);
             }
             else {
