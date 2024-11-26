@@ -95,6 +95,9 @@ Completes when all sources complete and errors if *any* source errors.
 ### `subscribe(observer): Subscription`
 Adds a subscription to this conduit, which will receive reactive updates.
 
+### `inner(getter): Conduit`
+Creates a pointer to the conduit that the provided returns now... or in the future!
+
 ### `then(callback): Subscription`
 Similar to `subscribe`, but it only runs once then cleans up the subscription.
 

@@ -142,11 +142,12 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /**
-     * #### Creates a pointer to the conduit {@linkcode getter} returns now or in the future.
+     * #### Creates a pointer to the conduit that {@linkcode getter} returns now, or in the future.
      * Enigma machine style.
      * - Subscribing to it will stream values from the conceptual "inner" conduit, *even as it changes due to the outer conduit changing!*
      * - Writing to the proxy will also update the current "inner" conduit.
-     * - This is the coolest method in the whole library.
+     * - If an inner conduit completes, it will unsplice itself from the proxy conduit.
+     * - Completing the proxy conduit doesn't do anything to the inner conduit.
      * @param getter - how to fetch the inner source from the outer (this) conduit
      * @returns epic proxy conduit
      */
@@ -155,6 +156,19 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         let proxy  = new Conduit<U>();
         let actual = () => this.value !== Conduit.EMPTY ? getter(this.value) : undefined; // getter so we don't closure
         let gate   = new Gate(); // le mighty endlosschleifenverhinderer
+
+        // pipe stuff from the proxy back to the actual... carefully.
+        let feedback = proxy.pipe( filter( gate.open ) ).subscribe({
+            next: (value) => {
+                gate.run( () => actual()?.next(value) );
+            },
+            complete: () => {
+                gate.run( () => this.unsplice(proxy as SourceKey) );
+            },
+            error: (err) => {
+                gate.run( () => actual()?.error(err) );
+            }
+        });
 
         // autosplice the actual to the proxy whenever the container changes
         // okay to let this subscription leak since it's our overridden subscribe and it'll catch it for us
@@ -167,10 +181,8 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
                     next: (value) => {
                         gate.run( () => proxy.next(value) );
                     },
-
-                    // TODO: should we actually pipe these?
                     complete: () => {
-                        gate.run( () => proxy.complete() );
+                        gate.run( () => this.unsplice(proxy as SourceKey) ); // unsplice the proxy when the inner completes
                     },
                     error: (err) => {
                         gate.run( () => proxy.error(err) );
@@ -181,22 +193,11 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             },
             complete: () => {
                 proxy.complete();
+                feedback.unsubscribe();
             },
             error: (err) => {
                 proxy.error(err);
-            }
-        });
-
-        // pipe stuff from the proxy back to the actual... carefully.
-        proxy.pipe( filter( gate.open ) ).subscribe({
-            next: (value) => {
-                gate.run( () => actual()?.next(value) );
-            },
-            complete: () => {
-                gate.run( () => actual()?.complete() );
-            },
-            error: (err) => {
-                gate.run( () => actual()?.error(err) );
+                feedback.unsubscribe();
             }
         });
 
@@ -211,13 +212,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
-        return this.subscribeProxy(callback);
-    }
-
-    private subscribeProxy(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined, proxy?: true): Subscription {
         const destination = new SafeSubscriber<T>(callback) as InternalSafeSubscriber<T>;
-
-        if( proxy ) destination[PROXY_SOURCE] = true;
 
         if(this._thrownError !== Conduit.OK){
             destination.error(this._thrownError); // error first if there is one

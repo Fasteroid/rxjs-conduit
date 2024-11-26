@@ -28,4 +28,13 @@ export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
         return out as ReadonlyConduit<Result>;
     }
 
+    /**
+     * @inheritdoc
+     */
+    public override inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
+        let out = super.inner(getter);
+        inject(DestroyRef).onDestroy(() => out.complete()); // won't complete what it points to, but will stop emitting
+        return out;
+    }
+
 }

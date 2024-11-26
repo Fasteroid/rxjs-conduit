@@ -15,92 +15,92 @@ import { Observer } from "rxjs";
  * - no infinite loops!
  */
 
-// type OuterValue = {
-//     innerField$: Conduit<number>;
-// }
+type OuterValue = {
+    innerField$: Conduit<number>;
+}
 
-// test("Inner conduit subscribe works correctly", () => {
-//     let errors: string[] = []
+test("Inner conduit subscribe works correctly", () => {
+    let errors: string[] = []
     
-//     const outer$ = new Conduit<OuterValue>();
+    const outer$ = new Conduit<OuterValue>();
 
-//     const inner$ = outer$.inner( (x) => x.innerField$ );
+    const inner$ = outer$.inner( (x) => x.innerField$ );
 
-//     let expectedEmits: Emission<number>[] = [
-//         ["next", 1],
-//         ["next", 2],
-//         ["next", 3],
-//         ["next", 4],
-//     ]
-//     inner$.subscribe( assertEmissions(expectedEmits, errors) );
+    let expectedEmits: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2],
+        ["next", 3],
+        ["next", 4],
+    ]
+    inner$.subscribe( assertEmissions(expectedEmits, errors) );
 
-//     let outer1: OuterValue = {
-//         innerField$: new Conduit(1)
-//     };
+    let outer1: OuterValue = {
+        innerField$: new Conduit(1)
+    };
 
-//     let outer2: OuterValue = {
-//         innerField$: new Conduit(3)
-//     };
+    let outer2: OuterValue = {
+        innerField$: new Conduit(3)
+    };
 
-//     outer1.innerField$.subscribe( (x) => {
-//         console.log(`inner1: ${x}`);
-//     } )
+    // outer1.innerField$.subscribe( (x) => {
+    //     console.log(`inner1: ${x}`);
+    // } )
 
-//     outer$.next(outer1); // inner$ should emit 1
-//     outer1.innerField$.next(2);
+    outer$.next(outer1); // inner$ should emit 1
+    outer1.innerField$.next(2);
 
-//     outer$.next(outer2);
-//     outer2.innerField$.next(4);
+    outer$.next(outer2);
+    outer2.innerField$.next(4);
 
-//     if( expectedEmits.length > 0 ){
-//         errors.push(`${expectedEmits.length} emissions didn't happen`);
-//     }
+    if( expectedEmits.length > 0 ){
+        errors.push(`${expectedEmits.length} emissions didn't happen`);
+    }
 
-//     throwAny(errors);
-// });
+    throwAny(errors);
+});
 
-// test("Inner conduit next works correctly", () => {
-//     let errors: string[] = []
+test("Inner conduit next works correctly", () => {
+    let errors: string[] = []
     
-//     const outer$ = new Conduit<OuterValue>();
+    const outer$ = new Conduit<OuterValue>();
 
-//     const inner$ = outer$.inner( (x) => x.innerField$ );
+    const inner$ = outer$.inner( (x) => x.innerField$ );
 
-//     let outer1: OuterValue = {
-//         innerField$: new Conduit(1)
-//     };
+    let outer1: OuterValue = {
+        innerField$: new Conduit(1)
+    };
 
-//     let outer2: OuterValue = {
-//         innerField$: new Conduit(3)
-//     };
+    let outer2: OuterValue = {
+        innerField$: new Conduit(3)
+    };
 
-//     let inner1expectations: Emission<number>[] = [
-//         ["next", 1],
-//         ["next", 2],
-//     ]
-//     outer1.innerField$.subscribe( assertEmissions(inner1expectations, errors, "inner1") );
+    let inner1expectations: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2],
+    ]
+    outer1.innerField$.subscribe( assertEmissions(inner1expectations, errors, "inner1") );
 
-//     let inner2expectations: Emission<number>[] = [
-//         ["next", 3],
-//         ["next", 4],
-//     ]
-//     outer2.innerField$.subscribe( assertEmissions(inner2expectations, errors, "inner2") );
+    let inner2expectations: Emission<number>[] = [
+        ["next", 3],
+        ["next", 4],
+    ]
+    outer2.innerField$.subscribe( assertEmissions(inner2expectations, errors, "inner2") );
 
-//     outer$.next(outer1);
-//     inner$.next(2);      // gets sent to the proxy source, which then sends back to inner, etc... infinite loop.
-//     outer$.next(outer2);
-//     inner$.next(4);
+    outer$.next(outer1);
+    inner$.next(2);      // gets sent to the proxy source, which then sends back to inner, etc... infinite loop.
+    outer$.next(outer2);
+    inner$.next(4);
 
-//     if( inner1expectations.length > 0 ){
-//         errors.push(`${inner1expectations.length} emissions on inner1 didn't happen`);
-//     }
+    if( inner1expectations.length > 0 ){
+        errors.push(`${inner1expectations.length} emissions on inner1 didn't happen`);
+    }
 
-//     if( inner2expectations.length > 0 ){
-//         errors.push(`${inner2expectations.length} emissions on inner2 didn't happen`);
-//     }
+    if( inner2expectations.length > 0 ){
+        errors.push(`${inner2expectations.length} emissions on inner2 didn't happen`);
+    }
 
-//     throwAny(errors);
-// });
+    throwAny(errors);
+});
 
 type Player = {
     name: string,
@@ -112,7 +112,7 @@ type GameServer = {
     spectating$: Conduit<Player>
 }
 
-test("Horrific inner conduit chain", () => {
+test("Inner conduit chains work", () => {
     let errors: string[] = []
     
 
@@ -141,9 +141,9 @@ test("Horrific inner conduit chain", () => {
         ["next", fitmc],
     ]
     innerSpectating$.subscribe( assertEmissions(innerSpectatingX, errors, "innerSpectating") );
-    innerSpectating$.subscribe( ply => {
-        console.log(`Spectating ${ply.name}`);
-    })
+    // innerSpectating$.subscribe( ply => {
+    //     console.log(`Spectating ${ply.name}`);
+    // })
 
     const innerSpectatorHp$ = innerSpectating$.inner( (x) => x.health$ );
     const innerSpectatorHpX: Emission<number>[] = [
@@ -160,9 +160,9 @@ test("Horrific inner conduit chain", () => {
         ["next", 19],   // a noob punches him for 1 damage
     ]
     innerSpectatorHp$.subscribe( assertEmissions(innerSpectatorHpX, errors, "innerSpectatorHp") );
-    innerSpectatorHp$.subscribe( hp => {
-        console.log(`HP is ${hp}`);
-    })
+    // innerSpectatorHp$.subscribe( hp => {
+    //     console.log(`HP is ${hp}`);
+    // })
 
     const spankyHealthX: Emission<number>[] = [
         ["next", 100],
