@@ -34,13 +34,8 @@ export function assertEmissions<T>(
                 return;
             }
 
-            let matcher = emission[2] ?? ((a, b) => a === b);
-
-            if( !matcher(x, emission[1]) || emission[0] !== "next" ){
+            if( x !== emission[1] || emission[0] !== "next" ){
                 errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got next(${x})`);
-            }
-            else {
-                console.log(`${source}: next(${x})`);
             }
         },
 
@@ -54,9 +49,6 @@ export function assertEmissions<T>(
             if( emission[0] !== "complete" ){
                 errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got complete()`);
             }
-            else {
-                console.log(`${source}: complete()`);
-            }
         },
 
         error: (err) => {
@@ -66,13 +58,8 @@ export function assertEmissions<T>(
                 return;
             }
 
-            let matcher = emission[2] ?? ((a, b) => a === b);
-
-            if( !matcher(err, emission[1]) || emission[0] !== "next" ){
+            if( err !== emission[1] || emission[0] !== "next" ){
                 errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got error(${err})`);
-            }
-            else {
-                console.log(`${source}: error(${err})`);
             }
         }
     }
