@@ -1,5 +1,6 @@
 import { DestroyRef, inject } from "@angular/core";
 import { Conduit, ReadonlyConduit } from "../vanilla";
+import { SubjectLike } from "rxjs";
 
 export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
 

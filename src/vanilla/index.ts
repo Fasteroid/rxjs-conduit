@@ -48,10 +48,17 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     public get sealed(): boolean { return this._sealed; }
     private _sealed = false;
 
+    // so we can error anything that subscribes after we seal
     private _thrownError: any = Conduit.OK;
 
+    // all sources that feed this conduit, indexed by either themselves, or an identifier for named splices
+    // all are unsubscribed when the conduit seals
     private sources:      Map< SourceKey | Unsubscribable,  Unsubscribable > = new Map();
-    private destinations: Set< Observer<T> > = new Set();
+
+    // all observers of this conduit
+    // all are removed when unsubscribe() is called
+    private destinations: Set< SafeSubscriber<T> > = new Set();
+
     /**
      * Creates a new conduit.
      * @param first an optional first value to pressurize the conduit with.
@@ -77,7 +84,9 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     public error(err: any): void {
         if( this.sealed ) return;
         this._thrownError = err;
-        this.destinations.forEach( dest => dest.error(err) );
+        this.destinations.forEach( dest => {
+            dest.error(err)
+        } );
         this.destinations.clear();
         this.seal();
     }
@@ -115,18 +124,26 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         this._value = value;
         this.destinations.forEach( dest => {
             try {
+                // possibility: change destinations to Set< CustomObserver<T> > and use a nullable method here to transmit source
                 dest.next(value);
             } 
             catch (err) {
                 dest.error(err);
             }
-        });
+        });  
+    }
+
+    public inner<U>( getter: (outerValue: T) => Conduit<U> ): Conduit<U> {
+        
+        let 
+
+
     }
 
     /**
      * #### Adds a destination to this conduit.
      * If this conduit has a value, the new subscriber will receive it immediately.
-     * @param callback - an {@link Observer | observer} or callback function
+     * @param callback - an {@link Observer | observer} or callback function``
      * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
@@ -186,6 +203,8 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
         const hard = config.hard ?? false;
         
+        // fun fact: new SafeSubscriber<T>(this) is just a hard splice!
+
         const subscriber = new SafeSubscriber<T>({
             next: (value) => {
                 this.next(value);
@@ -253,15 +272,15 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /** 
-     * Returns a fallback value if this conduit is empty, or {@linkcode value} otherwise.
+     * Returns the conduit's {@link value}, or returns the {@link fallback} if it's empty.
      * @param fallback The value to return if this conduit is empty.
      */
-    public valueOrDefault(fallback: T): T {
+    public valueOrDefault<X>(fallback: X): T | X {
         return this.value === Conduit.EMPTY ? fallback : this.value;
     }
 
     /** 
-     * Returns the value if this conduit is not empty, or throws an error otherwise.
+     * Returns the conduit's {@link value}, or throws the {@link reason} if it's empty.
      * @param reason The error to throw if this conduit is empty.
      */
     public valueOrThrow(reason: any): T {

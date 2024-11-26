@@ -115,10 +115,10 @@ True after it completes or errors.
 Returns the most recent value, or `Conduit.EMPTY` if there isn't one yet.
 
 ### `valueOrDefault(fallback): T`
-Returns the conduit's value, but returns the fallback instead if it's empty.
+Returns the conduit's value, or returns the fallback if it's empty.
 
 ### `valueOrThrow(reason): T`
-Returns the conduit's value, but throws the reason instead if it's empty.
+Returns the conduit's value, or throws the reason if it's empty.
 
 ### `flush(): void`
 Sets the conduit back to `Conduit.EMPTY` without notifying subscribers.
