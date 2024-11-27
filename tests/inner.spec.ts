@@ -66,6 +66,9 @@ test("Inner conduit next works correctly", () => {
 
     const inner$ = outer$.inner( (x) => x.innerField$ );
 
+    const splice$ = new Conduit<number>();
+    inner$.splice(splice$);
+
     let outer1: OuterValue = {
         innerField$: new Conduit(1)
     };
@@ -87,7 +90,7 @@ test("Inner conduit next works correctly", () => {
     outer2.innerField$.subscribe( assertEmissions(inner2expectations, errors, "inner2") );
 
     outer$.next(outer1);
-    inner$.next(2);      // gets sent to the proxy source, which then sends back to inner, etc... infinite loop.
+    splice$.next(2);      // gets sent to the proxy source, which then sends back to inner, etc... infinite loop.
     outer$.next(outer2);
     inner$.next(4);
 
