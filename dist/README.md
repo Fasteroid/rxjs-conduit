@@ -91,6 +91,7 @@ export class ThingViewComponent {
 ```
 
 ## API
+###### (Things that `Subject` can already do are omitted.)
 
 ### `new Conduit(first?: T)`
 Creates a new conduit, optionally with an initial value.

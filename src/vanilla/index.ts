@@ -2,9 +2,7 @@ import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Ob
 import { SafeSubscriber, Subscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
-
-
-export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice'>;
+export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice' >;
 
 const PROXY_SOURCE = Symbol('PROXY');
 
@@ -139,6 +137,34 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
                 dest.error(err);
             }
         });
+    }
+
+    /**
+     * Same as {@linkcode next}, but only if the value is not undefined.  
+     * Unfortunately needed since Angular sometimes *explicitly* sets undefined before the actual value you want
+     * for things like ViewChild.
+     */
+    public next_safe(value: T): void {
+        if( value === undefined ) return;
+        this.next(value);
+    }
+
+    /**
+     * A union of {@linkcode next} and {@linkcode complete}.
+     */
+    public completeWith(value: T){
+        this.next(value);
+        this.complete();
+    }
+
+    /**
+     * Same as {@linkcode completeWith}, but only if the value is not undefined.  
+     * Unfortunately needed since Angular sometimes *explicitly* sets undefined before the actual value you want
+     * for things like ViewChild.
+     */
+    public completeWith_safe(value: T){
+        if( value === undefined ) return;
+        this.completeWith(value);
     }
 
     /**
