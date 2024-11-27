@@ -142,14 +142,14 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     }
 
     /**
-     * #### Creates a pointer to the conduit that {@linkcode getter} returns now, or in the future.
-     * Enigma machine style.
-     * - Subscribing to it will stream values from the conceptual "inner" conduit, *even as it changes due to the outer conduit changing!*
-     * - Writing to the proxy will also update the current "inner" conduit.
-     * - If an inner conduit completes, it will unsplice itself from the proxy conduit.
-     * - Completing the proxy conduit doesn't do anything to the inner conduit.
+     * #### Creates a special "proxy" conduit based on the {@link getter} and value(s) of this conduit.
+     * The proxy is a read/write source identical to what the getter returns, even if the getter changes.
+     * - Subscribe once and forget; the proxy re-splices itself to new sources as the getter changes.
+     * - Writing to the proxy is the same as writing to what the getter returns.
+     * - If the proxy's current source completes, it will unsplice itself.
+     * - You can complete the proxy with no side effects to the proxy's source.
      * @param getter - how to fetch the inner source from the outer (this) conduit
-     * @returns epic proxy conduit
+     * @returns magic pointer
      */
     public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
 

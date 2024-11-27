@@ -43,44 +43,51 @@ source.complete();
 
 ### Angular Integration
 ```ts
-import { NgConduit } from 'rxjs-conduit/angular';
-import type { ReadonlyConduit } from 'rxjs-conduit/vanilla';
-import { Component, ViewChild } from '@angular/core';
+import { Component, ViewChild, Input } from '@angular/core';
 import { interval } from 'rxjs'
 
+// NgConduits inject a DestroyRef, and know when to clean themselves up!
+import { NgConduit } from 'rxjs-conduit/angular';
+
+type Thing = {
+    data$: Conduit<string>
+}
+
 @Component({
-    selector: 'app-example',
-    templateUrl: './example.component.html',
-    styleUrls: ['./example.component.scss']
+    selector: 'app-thing-view',
+    templateUrl: './thing-view.component.html',
+    styleUrls: ['./thing-view.component.scss']
 })
-export class ExampleComponent {
+export class ThingViewComponent {
 
     /*
-        NgConduit injects DestroyRef so it can unsubscribe
-        itself when the component is destroyed.
-    */
-    private _child$ = new NgConduit<ChildComponent>();    
-    
-    /*
-        Remembering when in the Angular component lifecycle decorated
-        values like this initialize is error-prone for beginners.
-
-        With a conduit and a setter, this becomes asynchronous code
-        until it initializes properly.
+        Ever tried to access something only for Angular to be like,
+        > "that's not ready in this lifecycle hook yet!!!"
+        Hook a setter to a conduit and never worry again.
     */
     @ViewChild(ChildComponent)
-        protected set child(value: ChildComponent){ 
-            _child$.next(value);
-        }
-        protected get child(){ 
-            return _child$.value as ChildComponent // slightly unsafe!
-        }
+        protected set child(c: ChildComponent){ _child$.next(c); }
+        protected get child(){ return _child$.value as ChildComponent }
+    private _child$ = new NgConduit<ChildComponent>();
+
+    /*
+        In one case, I needed nested reactivity on an Angular input.
+        For this, .inner() is a fantastic tool.
+    */
+    @Input()
+        public set thing(t: Thing){ this._thing$.next(t) }
+        public get thing(){ return this._thing$.value as Thing }
+    private _thing$ = new NgConduit<Thing>();
+
+    // use this as normal, it will update both sources
+    protected thingData$ = _thing$.inner( (thing) => thing.data$ );
 
     constructor(){
+        // This will run as soon as Angular decides to set up the child
         _child$.then( child => child.doSomething() );
     }
-
 }
+
 ```
 
 ## API
@@ -96,7 +103,7 @@ Completes when all sources complete and errors if *any* source errors.
 Adds a subscription to this conduit, which will receive reactive updates.
 
 ### `inner(getter): Conduit`
-Creates a pointer to the conduit that the provided returns now... or in the future!
+Creates a special "proxy" conduit based on the getter and value(s) of this conduit.
 
 ### `then(callback): Subscription`
 Similar to `subscribe`, but it only runs once then cleans up the subscription.
