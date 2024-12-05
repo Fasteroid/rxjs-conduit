@@ -172,7 +172,6 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * The proxy is a read/write source identical to what the getter returns, even if the getter changes.
      * - Subscribe once and forget; the proxy re-splices itself to new sources as the getter changes.
      * - Writing to the proxy is the same as writing to what the getter returns.
-     * - If the proxy's current source completes, it will unsplice itself.
      * - You can complete the proxy with no side effects to the proxy's source.
      * @param getter - how to fetch the inner source from the outer (this) conduit
      * @returns magic pointer
@@ -206,9 +205,6 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
                 let sub = managed.subscribe({                                // close the gate when any of this happens
                     next: (value) => {
                         gate.run( () => proxy.next(value) );
-                    },
-                    complete: () => {
-                        gate.run( () => this.unsplice(proxy as SourceKey) ); // unsplice the proxy when the inner completes
                     },
                     error: (err) => {
                         gate.run( () => proxy.error(err) );
