@@ -16,7 +16,7 @@ import { Observer } from "rxjs";
  */
 
 type OuterValue = {
-    innerField$: Conduit<number>;
+    source$: Conduit<number>;
 }
 
 test("Inner conduit subscribe works correctly", () => {
@@ -24,7 +24,7 @@ test("Inner conduit subscribe works correctly", () => {
     
     const outer$ = new Conduit<OuterValue>();
 
-    const inner$ = outer$.inner( (x) => x.innerField$ );
+    const inner$ = outer$.inner( (x) => x.source$ );
 
     let expectedEmits: Emission<number>[] = [
         ["next", 1],
@@ -35,11 +35,11 @@ test("Inner conduit subscribe works correctly", () => {
     inner$.subscribe( assertEmissions(expectedEmits, errors) );
 
     let outer1: OuterValue = {
-        innerField$: new Conduit(1)
+        source$: new Conduit(1)
     };
 
     let outer2: OuterValue = {
-        innerField$: new Conduit(3)
+        source$: new Conduit(3)
     };
 
     // outer1.innerField$.subscribe( (x) => {
@@ -47,10 +47,10 @@ test("Inner conduit subscribe works correctly", () => {
     // } )
 
     outer$.next(outer1); // inner$ should emit 1
-    outer1.innerField$.next(2);
+    outer1.source$.next(2);
 
     outer$.next(outer2);
-    outer2.innerField$.next(4);
+    outer2.source$.next(4);
 
     if( expectedEmits.length > 0 ){
         errors.push(`${expectedEmits.length} emissions didn't happen`);
@@ -64,30 +64,30 @@ test("Inner conduit next works correctly", () => {
     
     const outer$ = new Conduit<OuterValue>();
 
-    const inner$ = outer$.inner( (x) => x.innerField$ );
+    const inner$ = outer$.inner( (x) => x.source$ );
 
     const splice$ = new Conduit<number>();
     inner$.splice(splice$);
 
     let outer1: OuterValue = {
-        innerField$: new Conduit(1)
+        source$: new Conduit(1)
     };
 
     let outer2: OuterValue = {
-        innerField$: new Conduit(3)
+        source$: new Conduit(3)
     };
 
     let inner1expectations: Emission<number>[] = [
         ["next", 1],
         ["next", 2],
     ]
-    outer1.innerField$.subscribe( assertEmissions(inner1expectations, errors, "inner1") );
+    outer1.source$.subscribe( assertEmissions(inner1expectations, errors, "inner1") );
 
     let inner2expectations: Emission<number>[] = [
         ["next", 3],
         ["next", 4],
     ]
-    outer2.innerField$.subscribe( assertEmissions(inner2expectations, errors, "inner2") );
+    outer2.source$.subscribe( assertEmissions(inner2expectations, errors, "inner2") );
 
     outer$.next(outer1);
     splice$.next(2);      // gets sent to the proxy source, which then sends back to inner, etc... infinite loop.
@@ -176,6 +176,9 @@ test("Inner conduit chains work", () => {
     innerSpectatorHp$.next(90);          // damage fasteroid
     innerSpectating$.next(spanky);       // switch to spanky
     innerSpectatorHp$.next(100);         // spanky spawns in with full health
+
+    server1.spectating$.complete();      // what will this do?
+
     servers$.next(server2);              // switch to 2b2t, this will immediately observe popbob
     popbob.health$.next(1);              // popbob almost blows himself up
     innerSpectating$.next(fitmc);        // switch to fitmc
@@ -191,6 +194,84 @@ test("Inner conduit chains work", () => {
 
     if( spankyHealthX.length > 0 ){
         errors.push(`${spankyHealthX.length} emissions on spankyHealth didn't happen`);
+    }
+
+    throwAny(errors);
+});
+
+test("Inner conduit completion is intuitive", async () => {
+
+    let errors: string[] = []
+    
+    const outer$ = new Conduit<OuterValue>();
+
+    const proxy$ = outer$.inner( (x) => x.source$ );
+
+    let outer1: OuterValue = {
+        source$: new Conduit(1)
+    };
+
+    let outer2: OuterValue = {
+        source$: new Conduit(5)       
+    }
+
+    let outer3: OuterValue = {
+        source$: new Conduit(9)       
+    }
+
+    let proxyX: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2],
+        ["next", 3],
+        ["next", 5],
+        ["next", 6],
+        ["complete"],
+    ]
+
+    let source1X: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2],
+        ["complete"]
+    ]
+
+    let source2X: Emission<number>[] = [
+        ["next", 5],
+        ["next", 6],
+        ["next", 7],
+    ]
+
+    // EVENTS are as follows:
+    // proxy, source1, source2
+
+    proxy$.subscribe( assertEmissions(proxyX, errors, "inner") );              // _, _, _
+    outer1.source$.subscribe( assertEmissions(source1X, errors, "source 1") ); // _, 1, _
+    outer2.source$.subscribe( assertEmissions(source2X, errors, "source 2") ); // _, _, 5
+
+    outer$.next(outer1);       // 1, _, _
+    outer1.source$.next(2);    // 2, 2, _
+
+    outer1.source$.complete(); 
+    proxy$.next(3);            // 3, _, _ (write-back is a no-op)
+    outer1.source$.next(4)     // _, _, _ (also a no-op)
+
+    outer$.next(outer2)        // 5, _, 5
+
+    outer$.complete()
+    outer$.next(outer3)        // _, _, _ (no-op since outer$ is sealed)
+
+    proxy$.next(6)             // 6, _, 6
+
+    proxy$.complete();
+
+    outer2.source$.next(7)     // _, _, 7 (write-forward is a no-op)
+    proxy$.next(8);            // _, _, _ (no-op)
+
+    if( proxyX.length > 0 ){
+        errors.push(`${proxyX.length} emissions on inner didn't happen`);
+    }
+
+    if( source1X.length > 0 ){
+        errors.push(`${source1X.length} emissions on source 1 didn't happen`);
     }
 
     throwAny(errors);

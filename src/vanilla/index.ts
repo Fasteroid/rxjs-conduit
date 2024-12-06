@@ -1,5 +1,5 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike, BehaviorSubject, takeWhile, map, filter } from "rxjs";
-import { SafeSubscriber, Subscriber } from "rxjs/internal/Subscriber";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike, filter } from "rxjs";
+import { SafeSubscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
 export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice' >;
@@ -179,16 +179,13 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
 
         let proxy  = new Conduit<U>();
-        let actual = () => this.value !== Conduit.EMPTY ? getter(this.value) : undefined; // getter so we don't closure
-        let gate   = new Gate(); // le mighty endlosschleifenverhinderer
+        let actual = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter so we don't closure
+        let gate   = new Gate();
 
         // pipe stuff from the proxy back to the actual... carefully.
-        let feedback = proxy.pipe( filter( gate.open ) ).subscribe({
+        let feedback = proxy.pipe( filter( gate ) ).subscribe({
             next: (value) => {
                 gate.run( () => actual()?.next(value) );
-            },
-            complete: () => {
-                gate.run( () => this.unsplice(proxy as SourceKey) );
             },
             error: (err) => {
                 gate.run( () => actual()?.error(err) );
@@ -200,22 +197,22 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         this.subscribe({
             next: (container) => {
                 this.unsplice(proxy as SourceKey);                           // unsplice the old one, using proxy as an identifier
-                let managed = getter(container).pipe( filter( gate.open ) ); // only let values through when the gate is open
+                let managed = getter(container).pipe( filter( gate ) ); // only let values through when the gate is open
 
-                let sub = managed.subscribe({                                // close the gate when any of this happens
+                // pipe from the actual to the proxy... carefully.
+                let sub = managed.subscribe({
                     next: (value) => {
                         gate.run( () => proxy.next(value) );
+                    },
+                    complete: () => {
+                        this.unsplice(proxy as SourceKey)
                     },
                     error: (err) => {
                         gate.run( () => proxy.error(err) );
                     }
                 })
 
-                this.sources.set(proxy as SourceKey, sub);                   // splice the new one
-            },
-            complete: () => {
-                proxy.complete();
-                feedback.unsubscribe();
+                this.sources.set(proxy as SourceKey, sub); // splice the new one
             },
             error: (err) => {
                 proxy.error(err);
@@ -225,6 +222,9 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
         return proxy;
 
+    }
+    private ifWritable(): Conduit<T, SourceKey> | undefined {
+        return this._sealed ? undefined : this;
     }
 
     /**
@@ -423,20 +423,66 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
 }
 
-class Gate {
-    private _open: boolean = true;
+// Don't write code like this lol
 
-    public run<T>( section: () => T ): T {
-        let result: T;
-        this._open = false;
-        try {
-            result = section();
-        }
-        finally {
-            this._open = true;
-        }
-        return result;
-    }
+const BLOCKED = Symbol("BLOCKED");
 
-    public readonly open = () => this._open;
+type _Gate = Omit<Gate, "open"> & {
+    (): boolean
+    open: boolean
 }
+
+type Gate = {
+    (): boolean
+    readonly open: boolean
+    run<T>( this: Gate, section: () => T ): T | typeof BLOCKED
+}
+
+interface GateConstructor {
+    new (): Gate;
+    BLOCKED: typeof BLOCKED
+}
+
+/**
+ * A callable semaphore-like object; good for breaking loops in conduits.  
+ * Can be passed directly to RxJS's {@linkcode filter} operator to gate an observable source.
+ */
+export declare var Gate: GateConstructor
+
+Gate = ( 
+    class Gate {
+
+        public static readonly BLOCKED = BLOCKED;
+
+        /**
+         * Is the gate open?
+         */
+        public readonly open: boolean = true;
+
+        /**
+         * If the gate is open when called, closes it while running the provided section.  
+         * Returns the result of the section or {@linkcode Gate.BLOCKED} if it didn't run.
+         */
+        public run<T>( this: _Gate, section: () => T ): T | typeof Gate.BLOCKED {
+            let result: T | typeof Gate.BLOCKED = Gate.BLOCKED;
+            this.open = false;
+            try {
+                result = section();
+            }
+            finally {
+                this.open = true;
+            }
+            return result;
+        }
+
+        constructor(){
+            let it: _Gate = Object.setPrototypeOf( (() => it.open), Gate.prototype ) // it is a gate
+            it.open = true;
+        
+            return it
+        }
+
+    }
+) as any;
+
+Object.setPrototypeOf(Gate.prototype, Function); // it is a function
