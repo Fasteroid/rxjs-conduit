@@ -455,13 +455,13 @@ Gate = (
         public static readonly BLOCKED = BLOCKED;
 
         /**
-         * Is the gate open?
+         * Is the gate ready to run something?
          */
         public readonly open: boolean = true;
 
         /**
-         * If the gate is open when called, closes it while running the provided section.  
-         * Returns the result of the section or {@linkcode Gate.BLOCKED} if it didn't run.
+         * Runs the section if the gate isn't currently running anything else.
+         * Returns the result or {@linkcode Gate.BLOCKED} if it didn't run.
          */
         public run<T>( this: _Gate, section: () => T ): T | typeof Gate.BLOCKED {
             let result: T | typeof Gate.BLOCKED = Gate.BLOCKED;
