@@ -445,7 +445,7 @@ interface GateConstructor {
 }
 
 /**
- * A callable semaphore-like object; good for breaking loops in conduits.  
+ * Creates a semaphore-like object which is callable and returns its value.
  * Can be passed directly to RxJS's {@linkcode filter} operator to gate an observable source.
  */
 export declare var Gate: GateConstructor

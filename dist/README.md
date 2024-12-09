@@ -90,7 +90,7 @@ export class ThingViewComponent {
 
 ```
 
-## API
+## API: `Conduit`
 ###### (Things that `Subject` can already do are omitted.)
 
 ### `new Conduit(first?: T)`
@@ -134,11 +134,19 @@ Returns the conduit's value, or throws the reason if it's empty.
 ### `flush(): void`
 Sets the conduit back to `Conduit.EMPTY` without notifying subscribers.
 
-## ⚠️ Important Notes
+## Bonus API: `Gate`
 
-- This is my first package!
-- I might push breaking changes without warning!
-- I'm still learning, so I make zero guarantee of things working correctly!
+### `new Gate()`
+Creates a semaphore-like object which is callable and returns its value.  
+**Can be passed directly to RxJS's `filter` operator to gate an observable source!**
+
+### `run(section): T`
+Runs the section if the gate isn't currently running anything else.  
+Returns the result, or `Gate.BLOCKED` if it didn't run.
+
+### `open: boolean`
+Is the gate ready to run something?
+
 ## License
 
 MIT License.
