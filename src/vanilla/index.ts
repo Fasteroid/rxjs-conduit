@@ -130,7 +130,6 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         this._value = value;
         this.destinations.forEach( dest => {
             try {
-                // possibility: change destinations to Set< CustomObserver<T> > and use a nullable method here to transmit source
                 dest.next(value);
             }
             catch (err) {
@@ -179,9 +178,10 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
 
         let proxy    = new Conduit<U>();
-        let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter so we don't closure
         let gate     = new Gate();
         let feedforward: Subscription | undefined;
+
+        let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter since it will change
 
         // pipe stuff from the proxy back to the actual... carefully.
         let feedback = proxy.pipe( filter( gate ) ).subscribe({
@@ -193,9 +193,11 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             }
         });
 
+        feedback.add( () => feedforward?.unsubscribe() ); // sever both directions when the proxy is done
+
         // autosplice the actual to the proxy whenever the container changes
         // okay to let this subscription leak since it's our overridden subscribe and it'll catch it for us
-        let update = this.subscribe({
+        this.subscribe({
             next: (container) => {
                 feedforward?.unsubscribe();
 
