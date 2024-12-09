@@ -178,9 +178,10 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      */
     public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
 
-        let proxy  = new Conduit<U>();
-        let actual = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter so we don't closure
-        let gate   = new Gate();
+        let proxy    = new Conduit<U>();
+        let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter so we don't closure
+        let gate     = new Gate();
+        let feedforward: Subscription | undefined;
 
         // pipe stuff from the proxy back to the actual... carefully.
         let feedback = proxy.pipe( filter( gate ) ).subscribe({
@@ -194,25 +195,24 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
         // autosplice the actual to the proxy whenever the container changes
         // okay to let this subscription leak since it's our overridden subscribe and it'll catch it for us
-        this.subscribe({
+        let update = this.subscribe({
             next: (container) => {
-                this.unsplice(proxy as SourceKey);                           // unsplice the old one, using proxy as an identifier
-                let managed = getter(container).pipe( filter( gate ) ); // only let values through when the gate is open
+                feedforward?.unsubscribe();
+
+                let inner = getter(container).pipe( filter( gate ) ); // only let values through when the gate is open
 
                 // pipe from the actual to the proxy... carefully.
-                let sub = managed.subscribe({
+                feedforward = inner.subscribe({
                     next: (value) => {
                         gate.run( () => proxy.next(value) );
                     },
                     complete: () => {
-                        this.unsplice(proxy as SourceKey)
+                        feedforward?.unsubscribe();
                     },
                     error: (err) => {
                         gate.run( () => proxy.error(err) );
                     }
                 })
-
-                this.sources.set(proxy as SourceKey, sub); // splice the new one
             },
             error: (err) => {
                 proxy.error(err);
@@ -230,11 +230,13 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
     /**
      * #### Adds a destination to this conduit.
      * If this conduit has a value, the new subscriber will receive it immediately.
-     * @param callback - an {@link Observer | observer} or callback function``
+     * @param callback - an {@link Observer | observer} or callback function
      * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
+
         const destination = new SafeSubscriber<T>(callback) as InternalSafeSubscriber<T>;
+        destination.add(() => this.destinations.delete(destination));
 
         if(this._thrownError !== Conduit.OK){
             destination.error(this._thrownError); // error first if there is one
@@ -257,7 +259,6 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         }
 
         this.destinations.add(destination);
-        destination.add(() => this.destinations.delete(destination));
 
         return destination;
     }

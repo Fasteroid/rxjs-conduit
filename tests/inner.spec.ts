@@ -199,7 +199,7 @@ test("Inner conduit chains work", () => {
     throwAny(errors);
 });
 
-test("Inner conduit completion is intuitive", async () => {
+test("Inner conduit completions 1", async () => {
 
     let errors: string[] = []
     
@@ -273,6 +273,46 @@ test("Inner conduit completion is intuitive", async () => {
     if( source1X.length > 0 ){
         errors.push(`${source1X.length} emissions on source 1 didn't happen`);
     }
+
+    throwAny(errors);
+});
+
+test("Inner conduit completions 2", async () => {
+
+    let errors: string[] = []
+    
+    const outer$ = new Conduit<OuterValue>();
+
+    let outer1: OuterValue = {
+        source$: new Conduit()
+    };
+
+    let proxyX: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2]
+    ]
+
+    let sourceX: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2]
+    ]
+
+    let outerX: Emission<OuterValue>[] = [
+        ["next", outer1],
+        ["complete"]
+    ]
+
+    outer$.subscribe( assertEmissions(outerX, errors, "outer") );     
+
+    const proxy$ = outer$.inner( (outer) => outer.source$ )
+
+    outer$.completeWith(outer1);
+
+    proxy$.subscribe( assertEmissions(proxyX, errors, "proxy") );
+    outer1.source$.subscribe( assertEmissions(sourceX, errors, "source") );
+
+    proxy$.next(1);
+    outer1.source$.next(2);
 
     throwAny(errors);
 });
