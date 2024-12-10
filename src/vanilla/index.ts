@@ -424,6 +424,24 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         return out;
     }
 
+    /**
+     * Enables development mode for conduits.  
+     * In development mode, conduits will have additional properties and methods for debugging.  
+     * @developer
+     */
+    public static enableDevelopment(): void {
+        const ModifiedConduit = Object.create(
+            Object.getPrototypeOf(Conduit.prototype), 
+            Object.getOwnPropertyDescriptors(Conduit.prototype)
+        );
+    
+        Object.defineProperties(ModifiedConduit, Object.getOwnPropertyDescriptors(ConduitDevExtensions.prototype));
+    
+        // Instead of setting Conduit's prototype, set its prototype's prototype
+        Object.setPrototypeOf(Conduit.prototype, ModifiedConduit);
+    }
+
+
 }
 
 const BLOCKED = Symbol("BLOCKED");
