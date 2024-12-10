@@ -7,7 +7,7 @@
     "types": "index.d.ts",
     "scripts": {
         "test": "node -r esbuild-register --test **/*.spec.ts",
-        "experiment": "node -r esbuild-register --test tests/inner.spec.ts",
+        "experiment": "node -r esbuild-register --test tests/gates.spec.ts",
         "prepublish": "tsc && npm run test"
     },
     "author": "Fasteroid",

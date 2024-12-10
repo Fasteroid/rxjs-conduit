@@ -184,7 +184,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter since it will change
 
         // pipe stuff from the proxy back to the actual... carefully.
-        let feedback = proxy.pipe( filter( gate ) ).subscribe({
+        let feedback = proxy.subscribe({
             next: (value) => {
                 gate.run( () => actual()?.next(value) );
             },
@@ -201,7 +201,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             next: (container) => {
                 feedforward?.unsubscribe();
 
-                let inner = getter(container).pipe( filter( gate ) ); // only let values through when the gate is open
+                let inner = getter(container); // only let values through when the gate is open
 
                 // pipe from the actual to the proxy... carefully.
                 feedforward = inner.subscribe({
@@ -426,8 +426,6 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
 }
 
-// Don't write code like this lol
-
 const BLOCKED = Symbol("BLOCKED");
 
 type _Gate = Omit<Gate, "open"> & {
@@ -450,9 +448,7 @@ interface GateConstructor {
  * Creates a semaphore-like object which is callable and returns its value.
  * Can be passed directly to RxJS's {@linkcode filter} operator to gate an observable source.
  */
-export declare var Gate: GateConstructor
-
-Gate = ( 
+export const Gate: GateConstructor = (() => { 
     class Gate {
 
         public static readonly BLOCKED = BLOCKED;
@@ -467,7 +463,8 @@ Gate = (
          * Returns the result or {@linkcode Gate.BLOCKED} if it didn't run.
          */
         public run<T>( this: _Gate, section: () => T ): T | typeof Gate.BLOCKED {
-            let result: T | typeof Gate.BLOCKED = Gate.BLOCKED;
+            if( this.open === false ) return BLOCKED;
+            let result: T;
             this.open = false;
             try {
                 result = section();
@@ -485,7 +482,9 @@ Gate = (
             return it
         }
 
-    }
-) as any;
+    };
 
-Object.setPrototypeOf(Gate.prototype, Function); // it is a function
+    Object.setPrototypeOf(Gate.prototype, Function); // it is a function
+
+    return Gate as GateConstructor;
+})()
