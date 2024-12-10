@@ -1,6 +1,6 @@
 import { DestroyRef, inject } from "@angular/core";
 import { Conduit, ReadonlyConduit } from "../vanilla";
-import { SubjectLike } from "rxjs";
+import { Observable, SubjectLike, Subscribable } from "rxjs";
 
 export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
 
@@ -34,6 +34,15 @@ export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
     public override inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
         let out = super.inner(getter);
         inject(DestroyRef).onDestroy(() => out.complete()); // won't complete what it points to, but will stop emitting
+        return out;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public static override from<T>( source: Subscribable<T> ): ReadonlyConduit<T> {
+        let out = Conduit.from(source) as Conduit<T>; // TODO: this cast is a bit of a hack
+        inject(DestroyRef).onDestroy(() => out.complete());
         return out;
     }
 

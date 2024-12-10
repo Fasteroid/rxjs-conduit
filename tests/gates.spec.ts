@@ -1,6 +1,7 @@
 import test from "node:test";
-import { Conduit, Gate } from "../src/vanilla";
+import { Conduit } from "../src/vanilla";
 import { filter } from "rxjs";
+import { Gate } from "../src/tools";
 
 test("Gates block infinite loops without filter", () => {
     const gate = new Gate();

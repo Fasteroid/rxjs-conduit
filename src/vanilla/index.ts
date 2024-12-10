@@ -1,8 +1,9 @@
 import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike, filter } from "rxjs";
 import { SafeSubscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
+import { Gate } from "../tools/gate";
 
-export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice' >;
+export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice' | 'next_safe' | 'completeWith' | 'completeWith_safe' >;
 
 const PROXY_SOURCE = Symbol('PROXY');
 
@@ -71,10 +72,14 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      */
     constructor(first?: T) {
         super();
+        this.ᚼdevInit();
 
         // pass first value immediately if provided - could be an explicit undefined so we check arguments.length
         if(arguments.length > 0) this.next(first!);
     }
+
+    /** A special hook for the development mode mixin to override */
+    private ᚼdevInit(){ }
 
     private seal(): void {
         this.unsplice();
@@ -123,10 +128,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * ***This is a no-op if the conduit is sealed!***
      */
     public next(value: T): void {
-        if( this.sealed ){
-            console.warn("Called .next() on a sealed conduit!  This is probably a mistake!!");
-            return;
-        }
+        if( this.sealed ) return;
         this._value = value;
         this.destinations.forEach( dest => {
             try {
@@ -175,13 +177,13 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @param getter - how to fetch the inner source from the outer (this) conduit
      * @returns magic pointer
      */
-    public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
+    public inner<U>( getter: (container: T) => SubjectLike<U> ): Conduit<U> {
 
         let proxy    = new Conduit<U>();
         let gate     = new Gate();
-        let feedforward: Subscription | undefined;
+        let feedforward: Unsubscribable | undefined;
 
-        let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter since it will change
+        let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value) : undefined; // getter since it will change
 
         // pipe stuff from the proxy back to the actual... carefully.
         let feedback = proxy.subscribe({
@@ -286,10 +288,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      */
     public splice(source: Subscribable<T>, config: SourceConfig<SourceKey> = Conduit.DEFAULT_CONFIG): Conduit<T> {
 
-        if( this.sealed ){
-            console.warn("Attempted to splice into a sealed conduit!  This is probably a mistake!!");
-            return this;
-        }
+        if( this.sealed ) return this;
 
         const hard = config.hard ?? false;
 
@@ -321,6 +320,18 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         }
 
         return this;
+    }
+
+    /**
+     * Shorthand for the following code:
+     * ```ts
+     * return new Conduit<T>().splice(source, {hard: true})
+     * ```
+     * @param source 
+     * @returns 
+     */
+    public static from<T>(source: Subscribable<T>): ReadonlyConduit<T> {
+        return new Conduit<T>().splice(source, {hard: true});
     }
 
     /**
@@ -424,85 +435,6 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         return out;
     }
 
-    /**
-     * Enables development mode for conduits.  
-     * In development mode, conduits will have additional properties and methods for debugging.  
-     * @developer
-     */
-    public static enableDevelopment(): void {
-        const ModifiedConduit = Object.create(
-            Object.getPrototypeOf(Conduit.prototype), 
-            Object.getOwnPropertyDescriptors(Conduit.prototype)
-        );
+    public get ᚼisDevelopmentMode(): boolean { return false }
     
-        Object.defineProperties(ModifiedConduit, Object.getOwnPropertyDescriptors(ConduitDevExtensions.prototype));
-    
-        // Instead of setting Conduit's prototype, set its prototype's prototype
-        Object.setPrototypeOf(Conduit.prototype, ModifiedConduit);
-    }
-
-
 }
-
-const BLOCKED = Symbol("BLOCKED");
-
-type _Gate = Omit<Gate, "open"> & {
-    (): boolean
-    open: boolean
-}
-
-type Gate = {
-    (): boolean
-    readonly open: boolean
-    run<T>( this: Gate, section: () => T ): T | typeof BLOCKED
-}
-
-interface GateConstructor {
-    new (): Gate;
-    BLOCKED: typeof BLOCKED
-}
-
-/**
- * Creates a semaphore-like object which is callable and returns its value.
- * Can be passed directly to RxJS's {@linkcode filter} operator to gate an observable source.
- */
-export const Gate: GateConstructor = (() => { 
-    class Gate {
-
-        public static readonly BLOCKED = BLOCKED;
-
-        /**
-         * Is the gate ready to run something?
-         */
-        public readonly open: boolean = true;
-
-        /**
-         * Runs the section if the gate isn't currently running anything else.
-         * Returns the result or {@linkcode Gate.BLOCKED} if it didn't run.
-         */
-        public run<T>( this: _Gate, section: () => T ): T | typeof Gate.BLOCKED {
-            if( this.open === false ) return BLOCKED;
-            let result: T;
-            this.open = false;
-            try {
-                result = section();
-            }
-            finally {
-                this.open = true;
-            }
-            return result;
-        }
-
-        constructor(){
-            let it: _Gate = Object.setPrototypeOf( (() => it.open), Gate.prototype ) // it is a gate
-            it.open = true;
-        
-            return it
-        }
-
-    };
-
-    Object.setPrototypeOf(Gate.prototype, Function); // it is a function
-
-    return Gate as GateConstructor;
-})()
