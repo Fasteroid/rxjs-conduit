@@ -373,7 +373,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * Returns the conduit's {@link value}, or throws the {@link reason} if it's empty.
      * @param reason The error to throw if this conduit is empty.
      */
-    public valueOrThrow(reason: any): T {
+    public valueOrThrow(reason?: any): T {
         if( this.value === Conduit.EMPTY ) throw reason;
         return this.value;
     }
