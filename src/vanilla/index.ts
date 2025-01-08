@@ -2,12 +2,16 @@ import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Ob
 import { SafeSubscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
-export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice' | 'next_safe' | 'completeWith' | 'completeWith_safe' >;
+export type ReadonlyConduit<T> = Omit< Conduit<T>, 'next' | 'error' | 'complete' | 'splice' | 'unsubscribe' | 'flush' | 'unsplice' | 'next_safe' | 'completeWith' | 'completeWith_safe' >
 
 const PROXY_SOURCE = Symbol('PROXY');
 
 type InternalSafeSubscriber<T> = SafeSubscriber<T> & {
     [PROXY_SOURCE]?: true;
+}
+
+function ifWritable<T>( conduit: Conduit<T> ): Conduit<T> | undefined {
+    return conduit.sealed ? undefined : conduit;
 }
 
 /**
@@ -175,13 +179,13 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * @param getter - how to fetch the inner source from the outer (this) conduit
      * @returns magic pointer
      */
-    public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
+    public inner<U, C extends (Conduit<U> | ReadonlyConduit<U>)>(getter: (container: T) => C): C {
 
         let proxy    = new Conduit<U>();
         let gate     = new Gate();
         let feedforward: Subscription | undefined;
 
-        let actual   = () => this.value !== Conduit.EMPTY ? getter(this.value).ifWritable() : undefined; // getter since it will change
+        let actual = () => this.value !== Conduit.EMPTY ? ifWritable( getter(this.value) as Conduit<U> ) : undefined; // getter since it will change
 
         // pipe stuff from the proxy back to the actual... carefully.
         let feedback = proxy.subscribe({
@@ -222,11 +226,7 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
             }
         });
 
-        return proxy;
-
-    }
-    private ifWritable(): Conduit<T, SourceKey> | undefined {
-        return this._sealed ? undefined : this;
+        return proxy as C;
     }
 
     /**
@@ -488,3 +488,6 @@ export const Gate: GateConstructor = (() => {
 
     return Gate as GateConstructor;
 })()
+
+
+

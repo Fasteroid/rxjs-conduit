@@ -23,7 +23,7 @@ export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
         sources: Sources,
         formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
     ): ReadonlyConduit<Result> {
-        let out = Conduit.derived(sources, formula) as Conduit<Result>; // TODO: this cast is a bit of a hack
+        let out = Conduit.derived(sources, formula) as Conduit<Result>;
         inject(DestroyRef).onDestroy(() => out.complete());
         return out as ReadonlyConduit<Result>;
     }
@@ -31,9 +31,9 @@ export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
     /**
      * @inheritdoc
      */
-    public override inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U> {
+    public override inner<U, C extends (Conduit<U> | ReadonlyConduit<U>)>( getter: (container: T) => C ): C {
         let out = super.inner(getter);
-        inject(DestroyRef).onDestroy(() => out.complete()); // won't complete what it points to, but will stop emitting
+        inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete()); // won't complete what it points to, but will stop emitting... also the cast is a
         return out;
     }
 
