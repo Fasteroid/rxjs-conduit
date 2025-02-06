@@ -1,11 +1,11 @@
 # Conduits!
 
-A special kind of RxJS Subject, which preserves the last value emitted for late subscribers.  
+RxJS Replay Subjects with additional functionality
 
 ## Dude just use signals???
 
-- Angular's use of RxJS goes back further, so I'd rather use that. &nbsp;Computed signals are also too "magical" for me.
-- I find this way of doing things more intuitive. &nbsp;If you prefer something else, do that and save yourself the dependency!
+- Angular's use of RxJS goes back further, and signals still aren't supported everywhere yet.
+- Some applications are still better-suited for RxJS.
 
 ## Features
 
@@ -46,7 +46,7 @@ source.complete();
 import { Component, ViewChild, Input } from '@angular/core';
 import { interval } from 'rxjs'
 
-// NgConduits inject a DestroyRef, and know when to clean themselves up!
+// NgConduit injects a DestroyRef, and knows when to clean itself up!
 import { NgConduit } from 'rxjs-conduit/angular';
 
 type Thing = {
@@ -113,7 +113,7 @@ Similar to `subscribe`, but it only runs once then cleans up the subscription.
 Removes all subscribers to this conduit without notifying them.
 
 ### `splice(source, config?): Conduit`
-Adds a source to this conduit, which will feed it values reactively. &nbsp;Returns self.  
+Adds a source to this conduit, which will feed it values reactively until it completes. &nbsp;Returns self.  
 
 ### `unsplice(name?): boolean`
 Disconnects a previous spliced source from this conduit, if it was named.  
@@ -151,7 +151,7 @@ Is the gate ready to run something?
 
 MIT License.
 
-Copyright © 2024; Fasteroid
+Copyright © 2025; Fasteroid
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

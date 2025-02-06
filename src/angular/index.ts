@@ -33,7 +33,7 @@ export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
      */
     public override inner<U, C extends (Conduit<U> | ReadonlyConduit<U>)>( getter: (container: T) => C ): C {
         let out = super.inner(getter);
-        inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete()); // won't complete what it points to, but will stop emitting... also the cast is a
+        inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete());
         return out;
     }
 

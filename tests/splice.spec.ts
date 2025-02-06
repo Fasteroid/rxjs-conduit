@@ -1,8 +1,9 @@
 import test from "node:test";
 import { Conduit } from "../src/vanilla";
-import { throwAny } from "./common";
+import { assertEmissions, Emission, throwAny } from "./common";
+import { assert } from "console";
 
-test("Hard-splice pressure source to empty conduit", () => {
+test("Hard-splice", () => {
 
     const pusher   = new Conduit<number>(1);
     const receiver = new Conduit<number>();
@@ -27,7 +28,7 @@ test("Hard-splice pressure source to empty conduit", () => {
 
 });
 
-test("Soft-splice pressure source to empty conduit", () => {
+test("Soft-splice", () => {
     const pusher   = new Conduit<number>(1);
     const receiver = new Conduit<number>();
 
@@ -50,7 +51,7 @@ test("Soft-splice pressure source to empty conduit", () => {
     throwAny(errors);
 })
 
-test("Connect multiple sources to a conduit", () => {
+test("Splice multiple inputs", () => {
 
     const source1 = new Conduit<number>(1);
     const source2 = new Conduit<number>();
@@ -75,7 +76,7 @@ test("Connect multiple sources to a conduit", () => {
 
 });
 
-test("Connect pressure source to chain of conduits", () => {
+test("splice chain", () => {
 
     const source = new Conduit<boolean>(true);
 
@@ -104,30 +105,38 @@ test("Connect pressure source to chain of conduits", () => {
 
 })
 
-test("Connect to completed conduit", () => {
+
+
+test("completed spliced connection always unsplices", () => {
+
+    const expected: Emission<number>[] = [
+        ['next', 1],
+        ['next', 2],
+        ['complete']
+    ];
 
     const errors: string[] = [];
 
-    const conduit = new Conduit<string>("hi");
-    conduit.complete();
 
-    let next = false;
-    let complete = false;
-    let action = conduit.subscribe({ 
-        next: value => {
-            next = true;
-            if(value !== "hi") errors.push(`Subscribe expected "hi", got ${value}`);
-        },
-        complete: () => {
-            complete = true;
-        }
-    });
+    const instantlyCompleted = new Conduit<number>(1);
+    instantlyCompleted.complete();
 
-    conduit.next("bye");
+    const completedLater = new Conduit<number>();
+    const receiver = new Conduit<number>();
 
-    if( !next )           errors.push("Next didn't run");
-    if( !complete )       errors.push("Complete didn't run");
-    if( !action.closed ) errors.push("Callback subscription didn't close");
+    receiver.subscribe( assertEmissions(expected, errors, "main") )
+
+    receiver.splice(completedLater);
+    receiver.splice(instantlyCompleted);
+
+    completedLater.next(2);
+    completedLater.complete()
+
+    // @ts-ignore(2341);
+    assert(receiver.sources.size === 0, "all cold observables unspliced");
+
+    receiver.complete();
 
     throwAny(errors);
+
 })

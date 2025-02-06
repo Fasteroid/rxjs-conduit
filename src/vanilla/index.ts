@@ -276,7 +276,8 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
      * #### Adds a source {@link Subscribable} to this conduit.
      * Returns self.
      * - Passing the {@link SourceConfig.name | same name} will overwrite the old source.
-     * - {@link SourceConfig.hard | Hard splices} will complete this conduit when the source completes.
+     * - {@link SourceConfig.hard | Hard splices} will complete this conduit when a source completes.
+     * - Otherwise, the source will unsplice itself upon completion.
      * - Errors are always passed through.
      * - Internal subscriptions will be cleaned up when this conduit is sealed.
      * - Doesn't work if this conduit is sealed.
