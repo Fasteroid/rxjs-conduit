@@ -137,8 +137,7 @@ Sets the conduit back to `Conduit.EMPTY` without notifying subscribers.
 ## Bonus API: `Gate`
 
 ### `new Gate()`
-Creates a semaphore-like object which is callable and returns its value.  
-**Can be passed directly to RxJS's `filter` operator to gate an observable source!**
+Creates a semaphore.
 
 ### `run(section): T`
 Runs the section if the gate isn't currently running anything else.  
@@ -146,6 +145,10 @@ Returns the result, or `Gate.BLOCKED` if it didn't run.
 
 ### `open: boolean`
 Is the gate ready to run something?
+
+### `Gate.bind(first, second, conversions...): Unsubscribable`
+Creates a two-way binding between a pair of conduits.
+
 
 ## License
 

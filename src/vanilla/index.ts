@@ -1,4 +1,4 @@
-import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike, filter } from "rxjs";
+import { Unsubscribable, Observer, Subject, Subscription, Subscribable, take, Observable, SubjectLike, filter, OperatorFunction, map } from "rxjs";
 import { SafeSubscriber } from "rxjs/internal/Subscriber";
 import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
 
@@ -265,6 +265,8 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
         return destination;
     }
 
+
+
     /**
      * Removes all destinations from this conduit without notifying them.
      */
@@ -429,66 +431,71 @@ export class Conduit<T, SourceKey = any> extends Observable<T> implements Subjec
 
 const BLOCKED = Symbol("BLOCKED");
 
-type _Gate = Omit<Gate, "open"> & {
-    (): boolean
-    open: boolean
-}
-
-type Gate = {
-    (): boolean
-    readonly open: boolean
-    run<T>( this: Gate, section: () => T ): T | typeof BLOCKED
-}
-
-interface GateConstructor {
-    new (): Gate;
-    BLOCKED: typeof BLOCKED
-}
-
 /**
- * Creates a semaphore-like object which is callable and returns its value.
- * Can be passed directly to RxJS's {@linkcode filter} operator to gate an observable source.
+ * A semaphore-like helper class.
  */
-export const Gate: GateConstructor = (() => { 
-    class Gate {
+export class Gate {
 
-        public static readonly BLOCKED = BLOCKED;
+    public static readonly BLOCKED = BLOCKED;
 
-        /**
-         * Is the gate ready to run something?
-         */
-        public readonly open: boolean = true;
+    /**
+     * Is the gate ready to run something?
+     */
+    public get open(){ return this._open; }
+    private _open: boolean = true;
 
-        /**
-         * Runs the section if the gate isn't currently running anything else.
-         * Returns the result or {@linkcode Gate.BLOCKED} if it didn't run.
-         */
-        public run<T>( this: _Gate, section: () => T ): T | typeof Gate.BLOCKED {
-            if( this.open === false ) return BLOCKED;
-            let result: T;
-            this.open = false;
-            try {
-                result = section();
-            }
-            finally {
-                this.open = true;
-            }
-            return result;
+    /**
+     * Runs the section if the gate isn't currently running anything else.
+     * Returns the result or {@linkcode Gate.BLOCKED} if it didn't run.
+     */
+    public run<T>( section: () => T ): T | typeof Gate.BLOCKED {
+        if( this._open === false ) return BLOCKED;
+        let result: T;
+        this._open = false;
+        try {
+            result = section();
         }
-
-        constructor(){
-            let it: _Gate = Object.setPrototypeOf( (() => it.open), Gate.prototype ) // it is a gate
-            it.open = true;
-        
-            return it
+        finally {
+            this._open = true;
         }
+        return result;
+    }
 
-    };
+    /** 
+     * Connects two {@link Conduit | conduits} using two-way binding.
+     * 
+     * @param first - This one will initialize the binding
+     */
+    public static bind<T>(first: Conduit<T>, second: Conduit<T>): Unsubscribable;
+    
+    /** 
+     * Connects two {@link Conduit | conduits} with a two-way binding.
+     * 
+     * This overload allows you to bind conduits of different types together.
+     * 
+     * @param first - This one will initialize the binding
+     */
+    public static bind<C1, C2>(
+        first: Conduit<C1>, 
+        second: Conduit<C2>, 
+        from: OperatorFunction<C1, C2>, 
+        to: OperatorFunction<C2, C1>
+    ): Unsubscribable;
 
-    Object.setPrototypeOf(Gate.prototype, Function); // it is a function
 
-    return Gate as GateConstructor;
-})()
+    public static bind<C1, C2>(
+        first: Conduit<C1>,
+        second: Conduit<C2>,
+        from: OperatorFunction<C1, C2> = map( v => v as unknown as C2 ),
+        to: OperatorFunction<C2, C1> = map( v => v as unknown as C1 )
+    ): Unsubscribable {
+        const sem = new Gate();
+        const sub1 = first.pipe(from).subscribe( value => sem.run( () => second.next(value) ) )
+        const sub2 = second.pipe(to).subscribe( value => sem.run( () => first.next(value) ) )
+        return { unsubscribe: () => {
+            sub1.unsubscribe();
+            sub2.unsubscribe();
+        } }
+    }
 
-
-
+};
