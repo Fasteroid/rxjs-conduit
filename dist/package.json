@@ -1,6 +1,6 @@
 {
     "name": "rxjs-conduit",
-    "version": "5.1.1",
+    "version": "6.0.0",
     "description": "RxJS ReplaySubjects with with additional features to make reactive programming easier",
     "main": "index.js",
     "module": "index.js",

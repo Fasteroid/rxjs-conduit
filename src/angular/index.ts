@@ -42,27 +42,40 @@ export class NgConduit<T> extends Conduit<T> {
         return out as NgConduit<T>;
     }
 
+    /** 
+     * Like {@linkcode Conduit.bind}, but undoes it when the current component goes out of scope.
+     */
+    public static override bind<T1>(first: Conduit<T1>, second: Conduit<T1>): Unsubscribable;
+
+    /** 
+     * Like {@linkcode Conduit.bind}, but undoes it when the current component goes out of scope.
+     */
+    public static override bind<T1, T2>(
+        first: Conduit<T1>, 
+        second: Conduit<T2>,             
+        from: OperatorFunction<T1, T2>, 
+        to: OperatorFunction<T2, T1>
+    ): Unsubscribable;
+
+    /** 
+     * Like {@linkcode Conduit.bind}, but undoes it when the current component goes out of scope.
+     */
+    public static override bind<T1, T2>(
+        first: Conduit<T1>, 
+        second: Conduit<T2>,           
+        from: OperatorFunction<T1, T2> = map( v => v as unknown as T2 ),
+        to:   OperatorFunction<T2, T1> = map( v => v as unknown as T1 )
+    ): Unsubscribable {
+        return Conduit.prototype.bind.bind(first)(second, from, to); // legendary cursed syntax
+    }
+
     /**
      * @inheritdoc
      */  
     public override inner<U, C extends Conduit<U> | ReadonlyConduit<U>>( getter: (container: T) => C ): C {
         let out = super.inner(getter);
-        Object.setPrototypeOf(out, NgConduit.prototype);
         inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete());
         return out as C;
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public override bind<U>(
-        that: Conduit<U>, 
-        from: OperatorFunction<T, U> = map( v => v as unknown as U ),
-        to:   OperatorFunction<U, T> = map( v => v as unknown as T )
-    ): Unsubscribable {
-        const unsub = super.bind(that, from, to);
-        inject(DestroyRef).onDestroy(() => unsub.unsubscribe());
-        return unsub;
     }
 
 }
