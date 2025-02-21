@@ -44,14 +44,12 @@ export class NgConduit<T> extends Conduit<T> {
 
     /**
      * @inheritdoc
-     */
-    public override inner<U>( getter: (container: T) => Conduit<U> ): NgConduit<U>;
-    public override inner<U>( getter: (container: T) => ReadonlyConduit<U> ): NgReadonlyConduit<U>;    
-    public override inner<U>( getter: (container: T) => Conduit<U> | ReadonlyConduit<U> ): NgConduit<U> | NgReadonlyConduit<U> {
+     */  
+    public override inner<U, C extends Conduit<U> | ReadonlyConduit<U>>( getter: (container: T) => C ): C {
         let out = super.inner(getter);
         Object.setPrototypeOf(out, NgConduit.prototype);
         inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete());
-        return out as NgConduit<U> | NgReadonlyConduit<U>;
+        return out as C;
     }
 
     /**

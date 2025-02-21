@@ -145,6 +145,10 @@ Creates a semaphore.
 Runs the section if the gate isn't currently running anything else.  
 Returns the result, or `Gate.BLOCKED` if it didn't run.
 
+### `wrap(callback): T`
+Prevents the callback from calling itself.
+Returns the result, or `Gate.BLOCKED` if it didn't run.
+
 ### `open: boolean`
 Is the gate ready to run something?
 

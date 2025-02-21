@@ -166,9 +166,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      * @param getter - how to fetch the inner source from the outer (this) conduit
      * @returns magic pointer
      */
-    public inner<U>( getter: (container: T) => Conduit<U> ): Conduit<U>
-    public inner<U>( getter: (container: T) => ReadonlyConduit<U> ): ReadonlyConduit<U>    
-    public inner<U>( getter: (container: T) => Conduit<U> | ReadonlyConduit<U>): Conduit<U> | ReadonlyConduit<U> {
+    public inner<U, C extends Conduit<U> | ReadonlyConduit<U>>( getter: (container: T) => C): C {
 
         let proxy    = new Conduit<U>();
         let gate     = new Gate();
@@ -215,7 +213,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
             }
         });
 
-        return proxy as Conduit<U> | ReadonlyConduit<U>;
+        return proxy as C;
     }
 
     /**
@@ -461,6 +459,15 @@ export class Gate {
             this._open = true;
         }
         return result;
+    }
+
+    /**
+     * Wraps a callback with this gate, preventing it from recursively calling itself.
+     */
+    public wrap<T extends (...args: any[]) => any>(f: T): (...args: Parameters<T>) => ReturnType<T> | typeof Gate.BLOCKED {
+        return (...args: Parameters<T>) => {
+            return this.run( () => f(...args) )
+        };
     }
 
 };
