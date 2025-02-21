@@ -27,7 +27,7 @@ export class NgConduit<T> extends Conduit<T> {
         formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
     ): NgReadonlyConduit<Result> {
         let out = Conduit.derived(sources, formula) as Conduit<Result>;
-        Object.setPrototypeOf(out, NgConduit.prototype);
+        Object.setPrototypeOf(out, NgConduit.prototype); // really make this an NgConduit
         inject(DestroyRef).onDestroy(() => out.complete());
         return out as NgReadonlyConduit<Result>;
     }
@@ -35,9 +35,9 @@ export class NgConduit<T> extends Conduit<T> {
     /**
      * @inheritdoc
      */
-    public static override from<T>(source: Observable<T>): NgConduit<T> {
-        let out = Conduit.from(source);
-        Object.setPrototypeOf(out, NgConduit.prototype);
+    public static override from<T>(...args: Parameters<typeof Conduit.from<T>>): NgConduit<T> {
+        let out = Conduit.from(...args);
+        Object.setPrototypeOf(out, NgConduit.prototype); // really make this an NgConduit
         inject(DestroyRef).onDestroy(() => (out as Conduit<T>).complete());
         return out as NgConduit<T>;
     }

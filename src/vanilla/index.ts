@@ -418,11 +418,12 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
     /**
      * Creates a conduit from an {@linkcode Observable}.
      * ```typescript
-     * new Conduit().splice(source)
+     * new Conduit(first).splice(source)
      * ```
      */
-    public static from<T>(source: Observable<T>): Conduit<T> {
+    public static from<T>(source: Observable<T>, first?: T): Conduit<T> {
         const c = new Conduit<T>();
+        if(arguments.length > 1) c.next(first!);
         c.splice(source);
         return c;
     }

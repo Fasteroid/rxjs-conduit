@@ -100,7 +100,7 @@ Creates a new conduit, optionally with an initial value.
 Creates a conduit whose value is derived using a formula and a set of source conduits.  
 Completes when all sources complete and errors if *any* source errors.
 
-### `Conduit.from(source): Conduit`
+### `Conduit.from(source, first?): Conduit`
 Creates a conduit from an Observable.
 
 ### `subscribe(observer): Subscription`
