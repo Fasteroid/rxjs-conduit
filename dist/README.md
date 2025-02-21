@@ -1,6 +1,6 @@
 # Conduits!
 
-RxJS Replay Subjects with additional functionality
+RxJS ReplaySubjects with with additional features to make reactive programming easier.
 
 ## Dude just use signals???
 
@@ -100,24 +100,26 @@ Creates a new conduit, optionally with an initial value.
 Creates a conduit whose value is derived using a formula and a set of source conduits.  
 Completes when all sources complete and errors if *any* source errors.
 
+### `Conduit.from(source): Conduit`
+Creates a conduit from an Observable.
+
 ### `subscribe(observer): Subscription`
 Adds a subscription to this conduit, which will receive reactive updates.
 
 ### `inner(getter): Conduit`
 Creates a special "proxy" conduit based on the getter and value(s) of this conduit.
 
+### `bind(that, conversion...): Unsubscribable`
+Creates a two-way binding between a pair of conduits.
+
 ### `then(callback): Subscription`
 Similar to `subscribe`, but it only runs once then cleans up the subscription.
 
 ### `unsubscribe(): void`
-Removes all subscribers to this conduit without notifying them.
+Unsubscribes this conduit from any sources it might be watching.
 
-### `splice(source, config?): Conduit`
-Adds a source to this conduit, which will feed it values reactively until it completes. &nbsp;Returns self.  
-
-### `unsplice(name?): boolean`
-Disconnects a previous spliced source from this conduit, if it was named.  
-Pass no name to unsplice everything.
+### `splice(source): Unsubscribable`
+Adds a source to this conduit, which will feed it values reactively until it completes.
 
 ### `sealed: boolean`
 True after it completes or errors.
@@ -145,9 +147,6 @@ Returns the result, or `Gate.BLOCKED` if it didn't run.
 
 ### `open: boolean`
 Is the gate ready to run something?
-
-### `Gate.bind(first, second, conversions...): Unsubscribable`
-Creates a two-way binding between a pair of conduits.
 
 
 ## License

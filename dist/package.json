@@ -1,13 +1,13 @@
 {
     "name": "rxjs-conduit",
-    "version": "4.5.0",
-    "description": "A special kind of RxJS Subject, which preserves the last value emitted for late subscribers.",
+    "version": "5.0.0",
+    "description": "RxJS ReplaySubjects with with additional features to make reactive programming easier",
     "main": "index.js",
     "module": "index.js",
     "types": "index.d.ts",
     "scripts": {
         "test": "node -r esbuild-register --test **/*.spec.ts",
-        "experiment": "node -r esbuild-register --test tests/experiment.spec.ts",
+        "experiment": "node -r esbuild-register --test tests/gates.spec.ts",
         "prepublish": "tsc && npm run test"
     },
     "author": "Fasteroid",

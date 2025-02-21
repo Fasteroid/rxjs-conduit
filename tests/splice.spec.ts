@@ -3,8 +3,9 @@ import { Conduit } from "../src/vanilla";
 import { assertEmissions, Emission, throwAny } from "./common";
 import { assert } from "console";
 
-test("Hard-splice", () => {
 
+
+test("Splice", () => {
     const pusher   = new Conduit<number>(1);
     const receiver = new Conduit<number>();
 
@@ -16,31 +17,7 @@ test("Hard-splice", () => {
         if(value !== 1) errors.push(`Expected 1, got ${value}`);
     })
 
-    receiver.splice(pusher, {hard: true});
-
-    if( !ran ) errors.push("Receiver conduit didn't receive");
-
-    pusher.complete();
-
-    if( !receiver.sealed ) errors.push("Hard-spliced receiver was not sealed by completion of its source");
-
-    throwAny(errors);
-
-});
-
-test("Soft-splice", () => {
-    const pusher   = new Conduit<number>(1);
-    const receiver = new Conduit<number>();
-
-    const errors: string[] = [];
-    let ran = false;
-
-    receiver.subscribe(value => {
-        ran = true;
-        if(value !== 1) errors.push(`Expected 1, got ${value}`);
-    })
-
-    receiver.splice(pusher, {hard: false});
+    receiver.splice(pusher);
 
     if( !ran ) errors.push("Receiver conduit didn't receive");
 

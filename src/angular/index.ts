@@ -1,12 +1,15 @@
 import { DestroyRef, inject } from "@angular/core";
 import { Conduit, ReadonlyConduit } from "../vanilla";
-import { SubjectLike } from "rxjs";
+import { map, Observable, OperatorFunction, SubjectLike, Unsubscribable } from "rxjs";
+import { ReadonlyConduitLike } from "../readonly";
 
-export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
+export type NgReadonlyConduit<T> = ReadonlyConduitLike< NgConduit<T>, T >;
+
+export class NgConduit<T> extends Conduit<T> {
 
     /**
      * Creates a new NgConduit.  It will cease to exist when the current component is destroyed.
-     * @param first an optional first value to pressurize the conduit with.
+     * @param first an optional first value to initialize the conduit with.
      */
     constructor(first?: T) {
         super(...arguments);
@@ -22,19 +25,46 @@ export class NgConduit<T, SourceKey = any> extends Conduit<T, SourceKey> {
     >( 
         sources: Sources,
         formula: (args: { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never }) => Result
-    ): ReadonlyConduit<Result> {
+    ): NgReadonlyConduit<Result> {
         let out = Conduit.derived(sources, formula) as Conduit<Result>;
+        Object.setPrototypeOf(out, NgConduit.prototype);
         inject(DestroyRef).onDestroy(() => out.complete());
-        return out as ReadonlyConduit<Result>;
+        return out as NgReadonlyConduit<Result>;
     }
 
     /**
      * @inheritdoc
      */
-    public override inner<U, C extends (Conduit<U> | ReadonlyConduit<U>)>( getter: (container: T) => C ): C {
+    public static override from<T>(source: Observable<T>): NgConduit<T> {
+        let out = Conduit.from(source);
+        Object.setPrototypeOf(out, NgConduit.prototype);
+        inject(DestroyRef).onDestroy(() => (out as Conduit<T>).complete());
+        return out as NgConduit<T>;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public override inner<U>( getter: (container: T) => Conduit<U> ): NgConduit<U>;
+    public override inner<U>( getter: (container: T) => ReadonlyConduit<U> ): NgReadonlyConduit<U>;    
+    public override inner<U>( getter: (container: T) => Conduit<U> | ReadonlyConduit<U> ): NgConduit<U> | NgReadonlyConduit<U> {
         let out = super.inner(getter);
+        Object.setPrototypeOf(out, NgConduit.prototype);
         inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete());
-        return out;
+        return out as NgConduit<U> | NgReadonlyConduit<U>;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public override bind<U>(
+        that: Conduit<U>, 
+        from: OperatorFunction<T, U> = map( v => v as unknown as U ),
+        to:   OperatorFunction<U, T> = map( v => v as unknown as T )
+    ): Unsubscribable {
+        const unsub = super.bind(that, from, to);
+        inject(DestroyRef).onDestroy(() => unsub.unsubscribe());
+        return unsub;
     }
 
 }
