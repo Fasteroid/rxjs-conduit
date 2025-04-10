@@ -1,7 +1,9 @@
-import { DestroyRef, inject } from "@angular/core";
-import { Conduit, ReadonlyConduit } from "../vanilla";
-import { map, Observable, OperatorFunction, SubjectLike, Unsubscribable } from "rxjs";
-import { ReadonlyConduitLike } from "../readonly";
+import { DestroyRef, inject } from '@angular/core';
+import { map, OperatorFunction, Unsubscribable } from 'rxjs';
+import type { Defined, ReadonlyConduitLike } from '../internal_types';
+import { Conduit, ReadonlyConduit } from '../vanilla';
+
+
 
 export type NgReadonlyConduit<T> = ReadonlyConduitLike< NgConduit<T>, T >;
 
@@ -72,10 +74,10 @@ export class NgConduit<T> extends Conduit<T> {
     /**
      * @inheritdoc
      */  
-    public override inner<U, C extends Conduit<U> | ReadonlyConduit<U>>( getter: (container: T) => C ): C {
+    public override inner<U, C extends Conduit<U> | ReadonlyConduit<U> | undefined>( getter: (container: T) => C ): Defined<C> {
         let out = super.inner(getter);
         inject(DestroyRef).onDestroy(() => (out as Conduit<U>).complete());
-        return out as C;
+        return out as Defined<C>;
     }
 
 }

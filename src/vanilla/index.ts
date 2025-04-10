@@ -1,7 +1,9 @@
-import { Unsubscribable, Observer, ReplaySubject, Subscription, Subscribable, take, Observable, SubjectLike, OperatorFunction, map } from "rxjs";
-import { SafeSubscriber } from "rxjs/internal/Subscriber";
-import { EMPTY_SUBSCRIPTION } from "rxjs/internal/Subscription";
-import { ReadonlyConduitLike } from "../readonly";
+import { map, Observable, Observer, OperatorFunction, ReplaySubject, SubjectLike, Subscribable, Subscription, take, Unsubscribable } from 'rxjs';
+import { SafeSubscriber } from 'rxjs/internal/Subscriber';
+import { EMPTY_SUBSCRIPTION } from 'rxjs/internal/Subscription';
+import type { Defined, ReadonlyConduitLike } from '../internal_types';
+
+
 
 export type ReadonlyConduit<T> = ReadonlyConduitLike< Conduit<T>, T >
 
@@ -11,8 +13,8 @@ type InternalSafeSubscriber<T> = SafeSubscriber<T> & {
     [PROXY_SOURCE]?: true;
 }
 
-function ifWritable<T>( conduit: Conduit<T> ): Conduit<T> | undefined {
-    return conduit.sealed ? undefined : conduit;
+function ifWritable<T>( conduit: Conduit<T> | undefined ): Conduit<T> | undefined {
+    return (conduit === undefined || conduit.sealed) ? undefined : conduit;
 }
 
 
@@ -163,10 +165,11 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      * - Subscribe once and forget; the proxy re-splices itself to new sources as the getter changes.
      * - Writing to the proxy is the same as writing to what the getter returns.
      * - You can complete the proxy with no side effects to the proxy's source.
+     * - If the getter currently points to `undefined`, the proxy behaves like a normal unproxied conduit.
      * @param getter - how to fetch the inner source from the outer (this) conduit
      * @returns magic pointer
      */
-    public inner<U, C extends Conduit<U> | ReadonlyConduit<U>>( getter: (container: T) => C): C {
+    public inner<U, C extends Conduit<U> | ReadonlyConduit<U> | undefined>( getter: (container: T) => C ): Defined<C> {
 
         let proxy    = new Conduit<U>();
         let gate     = new Gate();
@@ -195,7 +198,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
                 let inner = getter(container); // only let values through when the gate is open
 
                 // pipe from the actual to the proxy... carefully.
-                feedforward = inner.subscribe({
+                feedforward = inner?.subscribe({
                     next: (value) => {
                         gate.run( () => proxy.next(value) );
                     },
@@ -213,7 +216,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
             }
         });
 
-        return proxy as C;
+        return proxy as Defined<C>;
     }
 
     /**

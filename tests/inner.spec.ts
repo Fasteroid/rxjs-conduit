@@ -316,3 +316,55 @@ test("Inner conduit completions 2", async () => {
 
     throwAny(errors);
 });
+
+
+
+test("Inner conduit nullability", async () => {
+
+    let errors: string[] = []
+
+    let outer1: OuterValue = {
+        source$: new Conduit<number>()
+    };
+
+    let empty = {};
+
+    let proxyX: Emission<number>[] = [
+        ["next", 1],
+        ["next", 2],
+        ["next", 3],
+        ["next", 4]
+    ]
+
+    let sourceX: Emission<number>[] = [
+        ["next", 2],
+        ["next", 3],
+        ["next", 4]
+    ]
+
+    let outerX: Emission<Partial<OuterValue>>[] = [
+        ["next", empty],
+        ["next", outer1],
+        ["complete"]
+    ]
+
+    outer1.source$.subscribe( assertEmissions(sourceX, errors, "source") );
+
+    const outer$ = new Conduit<Partial<OuterValue>>();
+    outer$.subscribe( assertEmissions(outerX, errors, "outer") );     
+
+    const proxy$ = outer$.inner( (outer) => outer.source$ );
+    proxy$.subscribe( assertEmissions(proxyX, errors, "proxy") );
+
+    outer$.next(empty);
+
+    proxy$.next(1);
+    outer1.source$.next(2);
+
+    outer$.completeWith(outer1); // proxy receives '2' from outer1.source$
+    
+    proxy$.next(3);
+    outer1.source$.next(4);
+
+    throwAny(errors);
+});
