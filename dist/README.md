@@ -146,8 +146,8 @@ Runs the section if the gate isn't currently running anything else.
 Returns the result, or `Gate.BLOCKED` if it didn't run.
 
 ### `wrap(callback): T`
-Prevents the callback from calling itself.
-Returns the result, or `Gate.BLOCKED` if it didn't run.
+Gets a copy of the callback that won't call itself.  
+The copy returns original result, or `Gate.BLOCKED` if it didn't run.
 
 ### `open: boolean`
 Is the gate ready to run something?

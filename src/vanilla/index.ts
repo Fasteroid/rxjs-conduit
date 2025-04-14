@@ -359,8 +359,8 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      * Returns the conduit's {@link value}, or returns the {@link fallback} if it's empty.
      * @param fallback The value to return if this conduit is empty.
      */
-    public valueOrDefault<X>(fallback: X): T | X {
-        return this.value === Conduit.EMPTY ? fallback : this.value;
+    public valueOrDefault<X = undefined>(fallback?: X): T | X {
+        return this.value === Conduit.EMPTY ? fallback as X : this.value;
     }
 
     /**
@@ -468,10 +468,17 @@ export class Gate {
     /**
      * Wraps a callback with this gate, preventing it from recursively calling itself.
      */
-    public wrap<T extends (...args: any[]) => any>(f: T): (...args: Parameters<T>) => ReturnType<T> | typeof Gate.BLOCKED {
+    public wrap<T extends (...args: any[]) => any>(callback: T): (...args: Parameters<T>) => ReturnType<T> | typeof Gate.BLOCKED {
         return (...args: Parameters<T>) => {
-            return this.run( () => f(...args) )
+            return this.run( () => callback(...args) )
         };
+    }
+
+    /**
+     * Wraps a callback with a gate, preventing it from recursively calling itself.
+     */
+    public static wrap<T extends (...args: any[]) => any>(callback: T): (...args: Parameters<T>) => ReturnType<T> | typeof Gate.BLOCKED {
+        return ( new Gate() ).wrap( callback )
     }
 
 };

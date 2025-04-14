@@ -68,7 +68,9 @@ export class NgConduit<T> extends Conduit<T> {
         from: OperatorFunction<T1, T2> = map( v => v as unknown as T2 ),
         to:   OperatorFunction<T2, T1> = map( v => v as unknown as T1 )
     ): Unsubscribable {
-        return Conduit.prototype.bind.bind(first)(second, from, to); // legendary cursed syntax
+        let out = Conduit.prototype.bind.bind(first) (second, from, to); // legendary cursed syntax
+        inject(DestroyRef).onDestroy(() => out.unsubscribe());
+        return out;
     }
 
     /**

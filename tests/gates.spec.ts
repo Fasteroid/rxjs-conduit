@@ -14,7 +14,7 @@ test("Gates stop infinite loop", () => {
     a$.next(1);
 });
 
-test("Gate.bind works", () => {
+test("Two-way binding works", () => {
     const errors: string[] = [];
 
     const a$ = new Conduit<number>();
