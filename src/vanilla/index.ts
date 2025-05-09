@@ -2,6 +2,7 @@ import { map, Observable, Observer, OperatorFunction, ReplaySubject, SubjectLike
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
 import { EMPTY_SUBSCRIPTION } from 'rxjs/internal/Subscription';
 import type { Defined, ReadonlyConduitLike } from '../internal_types';
+import { combineLatest } from 'rxjs';
 
 
 
@@ -288,7 +289,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
         source.subscribe(subscriber); // see what it does (it might complete immediately and clean itself up)
 
         if( !subscriber.closed ){ // if it didn't complete immediately, we'll need to clean it up later
-            this.sources.add(subscriber); // this cast is complete bullshit, but it's fine
+            this.sources.add(subscriber);
         }
 
         return subscriber;
@@ -319,7 +320,11 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
          * Creates a two-way binding.
          * @param that - will inherit the value from `this` when the binding initializes
          */
-        public bind(that: Conduit<T>): Unsubscribable;
+        public bind<A, B>(
+            // complex typing here to save us from contravariant issues; no idea why this actually works
+            this: Conduit<A extends T ? B extends A ? A : never : never>, 
+            that: Conduit<B extends T ? B : never>
+        ): Unsubscribable;
         
         /** 
          * Creates a two-way binding.
@@ -374,6 +379,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
 
     /**
      * #### Creates a conduit whose value is derived using a formula and a set of source conduits.
+     * You might also like {@linkcode combineLatest}
      * - Won't compute until all sources have values.
      * - Recomputes whenever a source changes.
      * - Seals when all sources have completed, or if any source errors.

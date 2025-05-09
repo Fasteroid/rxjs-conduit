@@ -4,6 +4,13 @@ export function throwAny(errs: string[]){
     if(errs.length > 0) throw new Error("One or more exceptions were thrown:\n" + errs.join('\n'));
 }
 
+export function addMissed(errs: string[], emissions: Emission<any>[], source: string = "default"){
+    if( emissions.length > 0 ){
+        let missed = emissions.map( (e) => `${source} missed emission:  \t${emissionToString(e)}` );
+        errs.push(...missed);
+    }
+}
+
 type ErrorEmission = [
     "error",
     any
@@ -20,6 +27,11 @@ type CompleteEmission = [
 
 export type Emission<T> = ErrorEmission | NextEmission<T> | CompleteEmission;
 
+function emissionToString<T>(emission: Emission<T>): string {
+    return `${emission[0]}` + `(${(emission[0] === 'complete' ? '' : emission[1])})`;
+}
+
+
 export function assertEmissions<T>(
     expectedEmits: Emission<T>[],
     errors: string[],
@@ -29,38 +41,38 @@ export function assertEmissions<T>(
     return {
         next: (x) => {
 
-            let emission = expectedEmits.shift();
-            if( emission === undefined ) {
-                errors.push(`${source}: Next ran too many times ${getFailurePoint()}`);
+            let expected = expectedEmits.shift();
+            if( expected === undefined ) {
+                errors.push(`${source}:  \tNext ran too many times ${getFailurePoint()}`);
                 return;
             }
 
-            if( x !== emission[1] || emission[0] !== "next" ){
-                errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got next(${x}) ${getFailurePoint()}`);
+            if( x !== expected[1] || expected[0] !== "next" ){
+                errors.push(`${source}:  \tExpected ${emissionToString(expected)} but got next(${x}) ${getFailurePoint()}`);
             }
         },
 
         complete: () => {
-            let emission = expectedEmits.shift();
-            if( emission === undefined ) {
-                errors.push(`${source}: Complete ran too many times ${getFailurePoint()}`);
+            let expected = expectedEmits.shift();
+            if( expected === undefined ) {
+                errors.push(`${source}:  \tComplete ran too many times ${getFailurePoint()}`);
                 return;
             }
 
-            if( emission[0] !== "complete" ){
-                errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got complete() ${getFailurePoint()}`);
+            if( expected[0] !== "complete" ){
+                errors.push(`${source}:  \tExpected ${emissionToString(expected)} but got complete() ${getFailurePoint()}`);
             }
         },
 
         error: (err) => {
-            let emission = expectedEmits.shift();
-            if( emission === undefined ) {
-                errors.push(`${source}: Error ran too many times ${getFailurePoint()}`);
+            let expected = expectedEmits.shift();
+            if( expected === undefined ) {
+                errors.push(`${source}:  \tError ran too many times ${getFailurePoint()}`);
                 return;
             }
 
-            if( err !== emission[1] || emission[0] !== "next" ){
-                errors.push(`${source}: Expected ${emission[0]}(${emission[1]}) but got error(${err}) ${getFailurePoint()}`);
+            if( err !== expected[1] || expected[0] !== "next" ){
+                errors.push(`${source}:  \tExpected ${emissionToString(expected)} but got error(${err}) ${getFailurePoint()}`);
             }
         }
     }
@@ -69,5 +81,5 @@ export function assertEmissions<T>(
 function getFailurePoint(): string {
     const stack = Error().stack || "";
     let lines = stack.split('\n');
-    return lines[lines.length - 2].trim();
+    return '  \t' + lines[lines.length - 2].trim();
 }
