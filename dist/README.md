@@ -97,8 +97,9 @@ export class ThingViewComponent {
 Creates a new conduit, optionally with an initial value.
 
 ### `Conduit.derived(sources, formula): ReadonlyConduit`
-Creates a conduit whose value is derived using a formula and a set of source conduits.  
+Creates a conduit whose value is derived using a formula and a set of source conduits.
 Completes when all sources complete and errors if *any* source errors.
+Evaluation of the formula is batched to avoid thrashing.
 
 ### `Conduit.from(source, first?): Conduit`
 Creates a conduit from an Observable.
@@ -122,7 +123,7 @@ Unsubscribes this conduit from any sources it might be watching.
 Adds a source to this conduit, which will feed it values reactively until it completes.
 
 ### `sealed: boolean`
-True after it completes or errors.
+True after it completes or errors.  Sealed conduits are cold observables.
 
 ### `value: T`
 Returns the most recent value, or `Conduit.EMPTY` if there isn't one yet.

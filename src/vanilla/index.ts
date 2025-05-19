@@ -1,8 +1,9 @@
-import { map, Observable, Observer, OperatorFunction, ReplaySubject, SubjectLike, Subscribable, Subscription, take, Unsubscribable } from 'rxjs';
+import { filter, map, Observable, ObservableInput, ObservableInputTuple, ObservedValueOf, Observer, OperatorFunction, ReplaySubject, skipUntil, SubjectLike, Subscribable, Subscription, take, Unsubscribable } from 'rxjs';
 import { SafeSubscriber } from 'rxjs/internal/Subscriber';
 import { EMPTY_SUBSCRIPTION } from 'rxjs/internal/Subscription';
 import type { Defined, ReadonlyConduitLike } from '../internal_types';
 import { combineLatest } from 'rxjs';
+import { after } from 'node:test';
 
 
 
@@ -18,6 +19,8 @@ function ifWritable<T>( conduit: Conduit<T> | undefined ): Conduit<T> | undefine
     return (conduit === undefined || conduit.sealed) ? undefined : conduit;
 }
 
+// zoneless queueMicrotask
+const queueMicrotask: typeof globalThis.queueMicrotask = (globalThis.queueMicrotask as any)?.__zone_symbol__OriginalDelegate ?? globalThis.queueMicrotask;
 
 /**
  * Similar to {@linkcode ReplaySubject}, but with more features.
@@ -51,12 +54,16 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
     // so we can error anything that subscribes after we seal
     private _thrownError: any = Conduit.OK;
 
-    // all sources that feed this conduit
-    // all are unsubscribed when the conduit seals
+    /**
+     * All sources that feed this conduit.
+     * These are unsubscribed when the conduit is {@linkcode seal | sealed}.
+    */
     private sources:      Set< Unsubscribable > = new Set();
 
-    // all observers of this conduit
-    // all are removed when unsubscribe() is called
+    /**
+     * All subscribers to this conduit.
+     * These are unsubscribed when the conduit is {@linkcode seal | sealed}.
+    */
     private destinations: Set< InternalSafeSubscriber<T> > = new Set();
 
     /**
@@ -72,8 +79,9 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
 
     /**
      * Seals the conduit, turning it cold and preventing further changes.
+     * Unsubscribes from all sources.
      */
-    public seal(): void {
+    private seal(): void {
         this.unsubscribe();
         this._sealed = true;
     }
@@ -90,7 +98,6 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
         this.destinations.forEach( dest => {
             dest.error(err)
         } );
-        this.destinations.clear();
         this.seal();
     }
 
@@ -110,7 +117,6 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
                 dest.error(err);
             }
         });
-        this.destinations.clear();
         this.seal();
     }
 
@@ -143,7 +149,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
     }
 
     /**
-     * A union of {@linkcode next} and {@linkcode complete}.
+     * Calls {@linkcode next} with `value`, then {@linkcode complete}.
      */
     public completeWith(value: T){
         this.next(value);
@@ -227,8 +233,9 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      * @returns the subscription
      */
     public override subscribe(callback: Partial<Observer<T>> | ((value: T) => void) | null | undefined): Subscription {
+
         const destination = new SafeSubscriber<T>(callback) as InternalSafeSubscriber<T>;
-        destination.add(() => this.destinations.delete(destination));
+        destination.add( () => this.destinations.delete(destination) );
 
         if(this._thrownError !== Conduit.OK){
             destination.error(this._thrownError); // error first if there is one
@@ -250,13 +257,15 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
             return EMPTY_SUBSCRIPTION;
         }
 
+        // if we haven't returned by now, add the destination
         this.destinations.add(destination);
 
         return destination;
+
     }
 
     /**
-     * Removes all sources from the conduit, freeing anything it observes.
+     * Unsubscribes all sources from this conduit.
      */
     public unsubscribe(): void {
         this.sources.forEach( source => source.unsubscribe() );
@@ -293,14 +302,6 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
         }
 
         return subscriber;
-    }
-
-    /**
-     * Resets this conduit to {@link Conduit.EMPTY | empty}.
-     * Does not notify subscribers.
-     */
-    public flush(){
-        this._value = Conduit.EMPTY;
     }
 
     /**
@@ -354,7 +355,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
                 sub2.unsubscribe();
                 this.sources.delete(unsubscribable);
             }}
-            this.sources.add(unsubscribable); // make sure to free the bind if we unsubscribe
+            this.sources.add(unsubscribable); // make sure to free the bind if the driver gets closed
 
             return unsubscribable;
         }
@@ -378,8 +379,11 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
     }
 
     /**
-     * #### Creates a conduit whose value is derived using a formula and a set of source conduits.
-     * You might also like {@linkcode combineLatest}
+     * #### Creates a conduit whose value is lazily derived using a formula and a set of source conduits.
+     * *What does "lazily" mean?* → The formula is evaluated *once* at the end of the current
+     * {@link https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide | event loop cycle}.
+     * if any sources have changed, rather than immediately upon a source changing.
+     * This helps cut down
      * - Won't compute until all sources have values.
      * - Recomputes whenever a source changes.
      * - Seals when all sources have completed, or if any source errors.
@@ -399,23 +403,45 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
 
         let sources_kv = Object.entries(sources);
 
-        let update = () => {
+        const update = () => {
             if ( sources_kv.some(source => source[1].value === Conduit.EMPTY) ) return; // can't do anything until all sources have values
             let args = Object.fromEntries( sources_kv.map(source => [source[0], source[1].value]) ) as { [K in keyof Sources]: Sources[K] extends ReadonlyConduit<infer U> ? U : never };
             out.next( formula(args) );
         }
+    
+        let update_dispatched = false;
+        const queueUpdate = () => {
+            if( update_dispatched ) return;
+            update_dispatched = true;
+            queueMicrotask( () => {
+                console.log("update()")
+                update();
+                update_dispatched = false;
+            } )
+        }
 
-        let completeIfFinished = () => {
+        const try_complete = () => {
             // the latest we can run this is when the last source is about to complete, so we check for 1 left instead of 0
             if( sources_kv.filter(source => !(source[1].sealed)).length === 1 ){
                 out.complete();
             }
         }
 
+        let completion_dispatched = false;
+        const queueCompletion = () => {
+            if( completion_dispatched ) return;
+            completion_dispatched = true;
+            queueMicrotask( () => {
+                console.log("try_complete()")
+                try_complete();
+                completion_dispatched = false;
+            } )
+        }
+
         for( let source of sources_kv ){
             let subscriber = source[1].subscribe({
-                next: () => update(),
-                complete: () => completeIfFinished(), // once all sources complete, we can complete since it can never change again
+                next: queueUpdate,
+                complete: queueCompletion, // once all sources complete, we can complete since it can never change again
                 error: (err) => out.error(err)        // any source error should immediately error this conduit
             })
             out.sources.add(subscriber)
@@ -436,6 +462,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
         c.splice(source);
         return c;
     }
+
 
 }
 

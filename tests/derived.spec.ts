@@ -1,9 +1,9 @@
 import test from "node:test";
 import { Conduit } from "../src/vanilla";
 import { from } from "rxjs";
-import { throwAny } from "./common";
+import { asyncMicrotask, throwAny } from "./common";
 
-test("Derive 1 + 1", () => {
+test("Derive 1 + 1", async () => {
 
     const a = new Conduit<number>(1);
     const b = new Conduit<number>(1);
@@ -16,13 +16,15 @@ test("Derive 1 + 1", () => {
         success = (value === 2);
     })
 
+    await asyncMicrotask();
+
     if( !success ){
         throw new Error("1+1 didn't equal 2");
     }
 
 });
 
-test("Derive (1 + 2) * (3 + 4)", () => {
+test("Derive (1 + 2) * (3 + 4)", async () => {
 
     let errors: string[] = [];
 
@@ -61,17 +63,21 @@ test("Derive (1 + 2) * (3 + 4)", () => {
 
     three.next(3);
 
+    await asyncMicrotask(); // wait for derived conduit to stabilize :)
+
     if( !succ1 || !succ2 || !succ3 ){
-        errors.push(`Failed some calculations. (1 + 2) ${succ1 ? 'passed' : 'failed'} (3 + 4): ${succ2 ? 'passed' : 'failed'}; (1 + 2) * (3 + 4) ${succ3 ? 'passed' : 'failed'}}`);
+        errors.push(`Failed some calculations.\n(1 + 2) ${succ1 ? 'passed' : 'failed'}\n(3 + 4) ${succ2 ? 'passed' : 'failed'}\n(1 + 2) * (3 + 4) ${succ3 ? 'passed' : 'failed'}`);
     }
 
     if( timesRan !== 1 ){
         errors.push(`Final conduit ran ${timesRan} times instead of once`);
     }
 
+    throwAny(errors)
+
 });
 
-test("Derive x + 1", () => {
+test("Derive x + 1", async () => {
     const errors: string[] = [];
 
     let initial  = Array.from({length: 10}, (_, i) => i).map(v => v + Math.random());
@@ -91,17 +97,23 @@ test("Derive x + 1", () => {
 
     x.splice( from(initial) ); // this has to come last, otherwise x will suck up the values before the derived conduit can subscribe!
 
+    await asyncMicrotask();
+
     if( expected.length > 0 ){
         errors.push(`Didn't compute all the values!`);
     }
 
     x.complete();
 
+    await asyncMicrotask();
+
     if( derived.sealed ){
         errors.push(`Derived conduit sealed before all sources completed`);
     }
 
     y.complete();
+
+    await asyncMicrotask();
 
     if( !derived.sealed ){
         errors.push(`Derived conduit didn't seal after all sources completed`);
@@ -110,7 +122,7 @@ test("Derive x + 1", () => {
     throwAny(errors);
 })
 
-test("Don't compute derived until ready", () => {
+test("Don't compute derived until ready", async () => {
     const errors: string[] = [];
 
     let x = new Conduit<number>();
@@ -128,6 +140,8 @@ test("Don't compute derived until ready", () => {
 
     x.next(1);
     y.next(2);
+    
+    await asyncMicrotask();
 
     if( !success ){
         errors.push(`Derived conduit didn't compute when it was ready`);

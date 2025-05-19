@@ -83,3 +83,7 @@ function getFailurePoint(): string {
     let lines = stack.split('\n');
     return '  \t' + lines[lines.length - 2].trim();
 }
+
+export async function asyncMicrotask(){
+    return new Promise<void>( (resolve) => queueMicrotask(resolve) )
+}
