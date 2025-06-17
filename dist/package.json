@@ -1,6 +1,6 @@
 {
-    "name": "rxjs-conduit",
-    "version": "6.3.1",
+    "name": "@fasteroid/rxjs-conduit",
+    "version": "7.0.0",
     "description": "RxJS ReplaySubjects with with additional features to make reactive programming easier",
     "main": "index.js",
     "module": "index.js",
