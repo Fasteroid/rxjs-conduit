@@ -46,3 +46,14 @@ test("Two-way binding works", () => {
 
     throwAny(errors)
 });
+
+test("Gates respect async sections", () => {
+
+    const gate = new Gate();
+
+    const f1 = gate.wrap( async () => await new Promise( (resolve) => setTimeout(resolve, 500) ) );
+    const f2 = gate.wrap( () => { throw "Gate didn't await the async result" } )
+
+    f1();
+    f2();
+})

@@ -441,8 +441,11 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
 
 const BLOCKED = Symbol("BLOCKED");
 
+type PromiseType<P> = P extends Promise<infer T> ? T : P 
+
 /**
  * A semaphore-like helper class.
+ * Now supports async critical sections!
  */
 export class Gate {
 
@@ -455,19 +458,27 @@ export class Gate {
     private _open: boolean = true;
 
     /**
-     * Runs the section if the gate isn't currently running anything else.
+     * Runs the section if the gate isn't currently running anything else (async sections will be awaited)
+     * 
      * Returns the result or {@linkcode Gate.BLOCKED} if it didn't run.
      */
     public run<T>( section: () => T ): T | typeof Gate.BLOCKED {
         if( this._open === false ) return BLOCKED;
-        let result: T;
+        let result: T | undefined;
         this._open = false;
+
         try {
             result = section();
+            if( result instanceof Promise ) {
+                result.finally( () => this._open = true );
+            }
         }
         finally {
-            this._open = true;
+            if( !(result instanceof Promise) ){ 
+                this._open = true;
+            }
         }
+
         return result;
     }
 
