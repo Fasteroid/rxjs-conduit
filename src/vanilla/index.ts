@@ -320,10 +320,10 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
          * Creates a two-way binding.
          * @param that - will inherit the value from `this` when the binding initializes
          */
-        public bind<A, B>(
+        public bind<A extends T, B extends A>(
             // complex typing here to save us from contravariant issues; no idea why this actually works
-            this: Conduit<A extends T ? B extends A ? A : never : never>, 
-            that: Conduit<B extends T ? B : never>
+            this: Conduit<A extends B ? A : never>, 
+            that: Conduit<B>
         ): Unsubscribable;
         
         /** 
