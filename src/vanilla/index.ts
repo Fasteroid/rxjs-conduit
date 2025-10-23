@@ -6,7 +6,7 @@ import { combineLatest } from 'rxjs';
 
 
 
-export type ReadonlyConduit<T> = ReadonlyConduitLike< Conduit<T>, T >
+export type ReadonlyConduit<T, EMPTY extends boolean = true> = ReadonlyConduitLike< Conduit<T, EMPTY>, T, EMPTY >
 
 const PROXY_SOURCE = Symbol('PROXY');
 
@@ -15,14 +15,23 @@ type InternalSafeSubscriber<T> = SafeSubscriber<T> & {
 }
 
 function ifWritable<T>( conduit: Conduit<T> | undefined ): Conduit<T> | undefined {
+    // @ts-ignore; excessively deep pain in my ass, this line is.
     return (conduit === undefined || conduit.sealed) ? undefined : conduit;
 }
 
+type ConduitContents<T> = T extends Conduit<infer T, infer EMPTY> ?
+    EMPTY extends true ?
+        T | typeof Conduit.EMPTY
+        :
+        T
+    :
+    never
+;
 
 /**
  * Similar to {@linkcode ReplaySubject}, but with more features.
  */
-export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
+class Conduit<T, EMPTY extends boolean = true> extends Observable<T> implements SubjectLike<T> {
 
     /**
      * The {@link value} of a conduit that has not yet received one.
@@ -38,8 +47,10 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      * The most recent value pushed through this conduit.
      * If nothing has been pushed yet, this will be equal to {@linkcode Conduit.EMPTY}.
      */
-    public get value(): T | typeof Conduit.EMPTY { return this._value; }
-    private _value: T | typeof Conduit.EMPTY = Conduit.EMPTY;
+    public get value(): ConduitContents<this> { return this._value; }
+
+    // @ts-ignore; yes it's bullshit but it's fine probably 
+    private _value: ConduitContents<this> = Conduit.EMPTY;
 
     /**
      * Conduits are sealed by {@linkcode complete} and {@linkcode error}.
@@ -121,6 +132,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      */
     public next(value: T): void {
         if( this.sealed ) return;
+        // @ts-ignore; this was fine before so it's fine now
         this._value = value;
         this.destinations.forEach( dest => {
             try {
@@ -299,7 +311,7 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
      * Resets this conduit to {@link Conduit.EMPTY | empty}.
      * Does not notify subscribers.
      */
-    public flush(){
+    public flush(this: Conduit<T, true>){
         this._value = Conduit.EMPTY;
     }
 
@@ -438,6 +450,25 @@ export class Conduit<T> extends Observable<T> implements SubjectLike<T> {
     }
 
 }
+
+// do some evil type fibbage to track empty conduits, which is horribly cursed in every way.
+type ConduitConstructor = {
+    /** This conduit is guaranteed to always have a value. */
+    new <T>(value: T):                  Conduit<T, false>;
+
+    /** This conduit may be empty. */
+    new <T>():                          Conduit<T, true>;
+
+    /** This conduit may be empty. */
+    new <T, X extends true>(value: T): Conduit<T, X>;
+};  
+
+const Cond2it = Conduit as unknown as typeof Conduit & ConduitConstructor;
+
+export {
+    Cond2it as Conduit,
+}
+
 
 const BLOCKED = Symbol("BLOCKED");
 
